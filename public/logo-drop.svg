@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="dropGrad" x1="60" y1="10" x2="60" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E0BA6E" />
+      <stop offset="50%" stop-color="#C99B43" />
+      <stop offset="100%" stop-color="#102B46" />
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="30" y1="70" x2="100" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6F8F3E" />
+      <stop offset="100%" stop-color="#455C22" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer subtle ring -->
+  <circle cx="60" cy="60" r="54" fill="#FFF9EF" stroke="#C99B43" stroke-opacity="0.4" stroke-width="1.5" />
+
+  <!-- Water Drop Base -->
+  <path d="M60 16 C60 16 32 54 32 76 C32 92.5 44.5 104 60 104 C75.5 104 88 92.5 88 76 C88 54 60 16 60 16 Z" 
+        fill="url(#dropGrad)" />
+
+  <!-- Drop Highlight Glare -->
+  <path d="M48 48 C44 54 42 63 42 72 C42 75 44 76 46 74 C47 72 48 64 54 56 C57 52 56 47 52 46 C50 46 49 47 48 48 Z" 
+        fill="#FFFFFF" fill-opacity="0.75" />
+  <circle cx="60" cy="35" r="3" fill="#FFFFFF" fill-opacity="0.9" />
+
+  <!-- Eco Leaf wrapping the droplet bottom right -->
+  <path d="M52 100 C68 102 96 94 98 68 C98 68 84 82 66 84 C56 85 52 92 52 100 Z" 
+        fill="url(#leafGrad)" />
+  <!-- Leaf Vein -->
+  <path d="M55 98 C72 92 88 80 95 72" stroke="#E0BA6E" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.85" />
+</svg>

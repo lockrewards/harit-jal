@@ -1,0 +1,323 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-ivory: #F8F3E9;
+    --color-cream: #FFF9EF;
+    --color-navy: #102B46;
+    --color-olive: #455C22;
+    --color-gold: #C99B43;
+    --color-gold-light: #E0BA6E;
+    --color-grey: #77766F;
+    --color-white: #FFFFFF;
+
+    /* Theme Aliases */
+    --color-bg: #F8F3E9;
+    --color-card: #FFF9EF;
+    --color-text-main: #102B46;
+    --color-text-muted: #77766F;
+    --color-border: rgba(201, 155, 67, 0.35);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-manrope {
+  font-family: 'Manrope', system-ui, sans-serif;
+}
+
+.font-devanagari {
+  font-family: 'Noto Sans Devanagari', sans-serif;
+}
+
+/* Premium Champagne Gold Pill Button */
+.btn-gold-luxury {
+  background: linear-gradient(135deg, #E0BA6E 0%, #C99B43 50%, #A87D2B 100%);
+  color: #102B46;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(201, 155, 67, 0.3);
+  transition: all 0.25s ease;
+}
+
+.btn-gold-luxury:hover {
+  background: linear-gradient(135deg, #ECD293 0%, #D8AD5A 50%, #B88532 100%);
+  box-shadow: 0 6px 24px rgba(201, 155, 67, 0.45);
+  transform: translateY(-1px);
+}
+
+/* Deep Navy Luxury Pill Button */
+.btn-navy-luxury {
+  background: #102B46;
+  color: #FFF9EF;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(16, 43, 70, 0.25);
+  border: 1px solid rgba(201, 155, 67, 0.4);
+  transition: all 0.25s ease;
+}
+
+.btn-navy-luxury:hover {
+  background: #183C60;
+  box-shadow: 0 6px 24px rgba(16, 43, 70, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Olive Green Outline Button */
+.btn-olive-outline {
+  background: rgba(255, 249, 239, 0.85);
+  border: 1.5px solid #455C22;
+  color: #455C22;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.btn-olive-outline:hover {
+  background: #455C22;
+  color: #FFF9EF;
+  transform: translateY(-1px);
+}
+
+/* Deep Navy Outline Pill Button */
+.btn-navy-outline {
+  background: rgba(255, 249, 239, 0.9);
+  border: 1.5px solid #102B46;
+  color: #102B46;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  transition: all 0.25s ease;
+}
+
+.btn-navy-outline:hover {
+  background: #102B46;
+  color: #FFF9EF;
+  transform: translateY(-1px);
+}
+
+/* Soft Cream Glass Cards */
+.glass-cream-card {
+  background: #FFF9EF;
+  border: 1px solid rgba(201, 155, 67, 0.3);
+  box-shadow: 0 10px 30px rgba(16, 43, 70, 0.06);
+}
+
+.glass-cream-nav {
+  background: rgba(255, 249, 239, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(201, 155, 67, 0.35);
+  box-shadow: 0 12px 35px rgba(16, 43, 70, 0.08);
+}
+
+/* Mascot Animations */
+@keyframes mascotBounce {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1.5deg);
+  }
+}
+
+@keyframes mascotWobble {
+  0% { transform: scale(1, 1); }
+  25% { transform: scale(1.12, 0.88); }
+  50% { transform: scale(0.9, 1.1); }
+  75% { transform: scale(1.04, 0.96); }
+  100% { transform: scale(1, 1); }
+}
+
+.animate-mascot {
+  animation: mascotBounce 3.2s ease-in-out infinite;
+}
+
+.animate-wobble {
+  animation: mascotWobble 0.6s ease-in-out;
+}
+
+@keyframes waveHandRight {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-18deg);
+  }
+}
+
+@keyframes waveHandLeft {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(18deg);
+  }
+}
+
+.animate-waveHandRight {
+  animation: waveHandRight 1.5s ease-in-out infinite;
+  transform-origin: 76px 72px;
+}
+
+.animate-waveHandLeft {
+  animation: waveHandLeft 1.5s ease-in-out infinite;
+  animation-delay: 0.25s;
+  transform-origin: 24px 72px;
+}
+
+/* Custom Scrollbar in Warm Ivory / Deep Navy */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F8F3E9;
+}
+::-webkit-scrollbar-thumb {
+  background: #C99B43;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #102B46;
+}
+
+/* ==========================================================================
+   Harit Jal — Custom Animated Water Bottle Cursor System
+   ========================================================================== */
+@media (hover: hover) and (pointer: fine) {
+  body.custom-cursor-active,
+  body.custom-cursor-active a,
+  body.custom-cursor-active button,
+  body.custom-cursor-active input,
+  body.custom-cursor-active select,
+  body.custom-cursor-active textarea,
+  body.custom-cursor-active [role="button"],
+  body.custom-cursor-active [role="link"],
+  body.custom-cursor-active .cursor-pointer {
+    cursor: none !important;
+  }
+}
+
+@keyframes cursorRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 0.95;
+    border-width: 2.5px;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.8);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+@keyframes cursorSecondaryRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.0);
+    opacity: 0;
+  }
+}
+
+@keyframes cursorSplashDroplet {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.95;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(var(--splash-dx), var(--splash-dy)) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes cursorHoverFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3.5px) rotate(2.5deg);
+  }
+}
+
+.animate-cursor-hover {
+  animation: cursorHoverFloat 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cursor-hover {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   Smooth Page Transition & Luxury Skeleton Screen Loader
+   ========================================================================== */
+@keyframes luxuryShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(238, 230, 215, 0.75) 0%,
+    rgba(201, 155, 66, 0.22) 50%,
+    rgba(238, 230, 215, 0.75) 100%
+  );
+  background-size: 200% 100%;
+  animation: luxuryShimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes pageFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes topLiquidBar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-liquid-bar {
+  animation: topLiquidBar 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
