@@ -310,56 +310,49 @@ async function handlePhoneLogin(
   }
 
   const table = rawAccountType === "partner" ? "customers" : "staff_users";
+  const columns = rawAccountType === "partner"
+    ? "id, email, phone, owner_name, restaurant_name"
+    : "id, name, email, phone, role, is_blocked";
   const candidates: Array<{ id: string; email: string; phone?: string; role?: string; is_blocked?: boolean }> = [];
 
-  // Query candidate by standard E.164 (+91XXXXXXXXXX)
-  try {
-    const q1 = supabaseAdmin.from(table).select("id, name, email, phone, role, is_blocked").eq("phone", normPhone.e164);
-    if (q1 && typeof (q1 as { maybeSingle?: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle === "function") {
-      const res = await (q1 as { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle();
-      if (res?.data) candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
-    } else {
-      const res = await (q1 as unknown as Promise<{ data: unknown }>);
-      if (Array.isArray(res?.data)) {
-        candidates.push(...(res.data as unknown as Array<{ id: string; email: string; phone?: string; role?: string; is_blocked?: boolean }>));
-      } else if (res?.data) {
-        candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
+  const addCandidateRow = (data: unknown) => {
+    if (!data) return;
+    const rows = Array.isArray(data) ? data : [data];
+    for (const r of rows) {
+      if (r && typeof r === "object") {
+        const row = r as Record<string, unknown>;
+        if (typeof row.email === "string" && row.email) {
+          candidates.push({
+            id: String(row.id || ""),
+            email: String(row.email).trim().toLowerCase(),
+            phone: typeof row.phone === "string" ? row.phone : undefined,
+            role: typeof row.role === "string" ? row.role : (rawAccountType === "partner" ? "customer" : undefined),
+            is_blocked: Boolean(row.is_blocked),
+          });
+        }
       }
     }
-  } catch {}
+  };
 
-  // Query candidate by formatted display ("+91 98112 34567") if no match
-  if (candidates.length === 0) {
-    try {
-      const q2 = supabaseAdmin.from(table).select("id, name, email, phone, role, is_blocked").eq("phone", normPhone.formattedDisplay);
-      if (q2 && typeof (q2 as { maybeSingle?: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle === "function") {
-        const res = await (q2 as { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle();
-        if (res?.data) candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
-      } else {
-        const res = await (q2 as unknown as Promise<{ data: unknown }>);
-        if (Array.isArray(res?.data)) {
-          candidates.push(...(res.data as unknown as Array<{ id: string; email: string; phone?: string; role?: string; is_blocked?: boolean }>));
-        } else if (res?.data) {
-          candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
-        }
-      }
-    } catch {}
-  }
+  // Test standard phone formats (E.164, formatted display with spaces, 10-digit national, single-space +91, with 0)
+  const phoneFormats = [
+    normPhone.e164,
+    normPhone.formattedDisplay,
+    normPhone.digits10,
+    `+91 ${normPhone.digits10}`,
+    `0${normPhone.digits10}`,
+  ];
 
-  // Query candidate by 10-digit national number ("9811234567") if no match
-  if (candidates.length === 0) {
+  for (const fmt of phoneFormats) {
+    if (candidates.length > 0) break;
     try {
-      const q3 = supabaseAdmin.from(table).select("id, name, email, phone, role, is_blocked").eq("phone", normPhone.digits10);
-      if (q3 && typeof (q3 as { maybeSingle?: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle === "function") {
-        const res = await (q3 as { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle();
-        if (res?.data) candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
+      const q = supabaseAdmin.from(table).select(columns).eq("phone", fmt);
+      if (q && typeof (q as { maybeSingle?: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle === "function") {
+        const res = await (q as { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> }).maybeSingle();
+        if (res?.data) addCandidateRow(res.data);
       } else {
-        const res = await (q3 as unknown as Promise<{ data: unknown }>);
-        if (Array.isArray(res?.data)) {
-          candidates.push(...(res.data as unknown as Array<{ id: string; email: string; phone?: string; role?: string; is_blocked?: boolean }>));
-        } else if (res?.data) {
-          candidates.push(res.data as unknown as { id: string; email: string; phone?: string; role?: string; is_blocked?: boolean });
-        }
+        const res = await (q as unknown as Promise<{ data: unknown }>);
+        if (res?.data) addCandidateRow(res.data);
       }
     } catch {}
   }

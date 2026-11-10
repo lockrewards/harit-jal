@@ -116,7 +116,7 @@ export const UnifiedAuthService = {
     // -------------------------------------------------------------------------
     if (isSupabaseConfigured() && supabase) {
       try {
-        let resolvedAuthUser: { id: string; email?: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; created_at?: string } | null = null;
+        let resolvedAuthUser: { id: string; email?: string; phone?: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; created_at?: string } | null = null;
 
         if (isEmail) {
           // STEP 1: Direct GoTrue Email + Password Authentication
@@ -154,44 +154,113 @@ export const UnifiedAuthService = {
           const authUser = authData.user;
           resolvedAuthUser = authUser;
         } else {
-          // STEP 1: Server-Side Phone Resolution & Authentication (No client storage reliance)
+          // STEP 1: Phone Resolution & Authentication
           const phoneE164 = normPhone!.e164;
-          const { data: edgeData, error: edgeError } = await supabase.functions.invoke('staff-auth', {
-            body: {
-              action: 'phone_login',
-              phone: phoneE164,
+          let phoneResolvedEmail: string | null = null;
+
+          // 1A. Fast & Reliable RPC Phone Resolution
+          try {
+            const { data: rpcRes, error: rpcErr } = await supabase.rpc('resolve_phone_login_email', {
+              p_phone: normPhone!.digits10,
+              p_account_type: expectedAccountType,
+            });
+            if (!rpcErr && rpcRes && typeof rpcRes === 'object') {
+              const resObj = rpcRes as { found?: boolean; email?: string; is_blocked?: boolean; error?: string };
+              if (resObj.is_blocked) {
+                return {
+                  success: false,
+                  error: 'Account has been blocked or suspended by Administrator. Access is revoked.',
+                };
+              }
+              if (resObj.found && typeof resObj.email === 'string' && resObj.email) {
+                phoneResolvedEmail = resObj.email.trim().toLowerCase();
+              }
+            }
+          } catch {
+            // RPC fallback
+          }
+
+          // 1B. If RPC resolved the email, authenticate directly with GoTrue
+          if (phoneResolvedEmail) {
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+              email: phoneResolvedEmail,
               password: cleanPassword,
-              accountType: expectedAccountType,
-            },
-          });
+            });
 
-          if (edgeError || !edgeData?.success || !edgeData?.session) {
-            const failRes = SecurityRateLimiter.recordFailedPassword(phoneE164);
-            const errMsg = edgeData?.error || edgeError?.message || 'Invalid mobile number or password. Please verify your credentials.';
-            return {
-              success: false,
-              isBlocked: failRes.isBlocked,
-              remainingAttempts: failRes.attemptsRemaining,
-              error: failRes.isBlocked
-                ? 'Security Lockout: Maximum failed attempts exceeded. Access locked for 24 hours.'
-                : errMsg,
-            };
+            if (authError || !authData.user) {
+              const failRes = SecurityRateLimiter.recordFailedPassword(phoneE164);
+              return {
+                success: false,
+                isBlocked: failRes.isBlocked,
+                remainingAttempts: failRes.attemptsRemaining,
+                error: failRes.isBlocked
+                  ? 'सुरक्षा लॉक: 3 बार गलत पासवर्ड दर्ज करने के कारण आपका अकाउंट 24 घंटे के लिए लॉक कर दिया गया है। (Security Lockout: Access locked for 24 hours.)'
+                  : 'गलत पासवर्ड! कृपया सही पासवर्ड दर्ज करें या "Forgot password" का उपयोग करें। (Invalid password. Please verify your credentials or reset password.)',
+              };
+            }
+
+            resolvedAuthUser = authData.user;
+          } else {
+            // 1C. Authoritative Server-Side Edge Function staff-auth
+            const { data: edgeData, error: edgeError } = await supabase.functions.invoke('staff-auth', {
+              body: {
+                action: 'phone_login',
+                phone: phoneE164,
+                password: cleanPassword,
+                accountType: expectedAccountType,
+              },
+            });
+
+            if (edgeError || !edgeData?.success || !edgeData?.session) {
+              const failRes = SecurityRateLimiter.recordFailedPassword(phoneE164);
+
+              let parsedError: string | null = null;
+              if (edgeData && typeof edgeData.error === 'string') {
+                parsedError = edgeData.error;
+              } else if (edgeError) {
+                try {
+                  const ctx = (edgeError as { context?: Response }).context;
+                  if (ctx && typeof ctx.json === 'function') {
+                    const jsonBody = await ctx.json();
+                    if (jsonBody && typeof jsonBody.error === 'string') {
+                      parsedError = jsonBody.error;
+                    }
+                  }
+                } catch {
+                  // Fallback
+                }
+              }
+
+              let userFriendlyMsg = parsedError || 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल से लॉगिन करें। (Invalid mobile number or password.)';
+              if (userFriendlyMsg.includes('non-2xx') || userFriendlyMsg.includes('Edge Function')) {
+                userFriendlyMsg = 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल से लॉगिन करें। (Invalid mobile number or password. Please verify your credentials.)';
+              }
+
+              return {
+                success: false,
+                isBlocked: failRes.isBlocked,
+                remainingAttempts: failRes.attemptsRemaining,
+                error: failRes.isBlocked
+                  ? 'सुरक्षा लॉक: 3 बार गलत पासवर्ड दर्ज करने के कारण आपका अकाउंट 24 घंटे के लिए लॉक कर दिया गया है। (Security Lockout: Access locked for 24 hours.)'
+                  : userFriendlyMsg,
+              };
+            }
+
+            // Authoritatively establish client session with validated GoTrue session tokens
+            const { error: sessionErr } = await supabase.auth.setSession({
+              access_token: edgeData.session.access_token,
+              refresh_token: edgeData.session.refresh_token,
+            });
+
+            if (sessionErr) {
+              return {
+                success: false,
+                error: 'Failed to establish authenticated session. Please try again.',
+              };
+            }
+
+            resolvedAuthUser = edgeData.user;
           }
-
-          // Authoritatively establish client session with validated GoTrue session tokens
-          const { error: sessionErr } = await supabase.auth.setSession({
-            access_token: edgeData.session.access_token,
-            refresh_token: edgeData.session.refresh_token,
-          });
-
-          if (sessionErr) {
-            return {
-              success: false,
-              error: 'Failed to establish authenticated session. Please try again.',
-            };
-          }
-
-          resolvedAuthUser = edgeData.user;
         }
 
         const authUser = resolvedAuthUser;
@@ -227,13 +296,31 @@ export const UnifiedAuthService = {
               .maybeSingle(),
           ]);
 
-          // Check errors from both parallel queries: if either fails, reject authentication
+          // Check errors from both parallel queries: if either fails, check if app_metadata confirms staff role
           if (authIdErr || idErr) {
-            await supabase.auth.signOut();
-            return {
-              success: false,
-              error: 'Access denied: Database query failure while resolving staff identity.',
-            };
+            const rawAppRole = typeof appMeta.role === 'string' ? appMeta.role : null;
+            if (isStaffRole(rawAppRole)) {
+              staffRow = {
+                id: authUid,
+                auth_user_id: authUid,
+                name: typeof userMeta.name === 'string' && userMeta.name.trim() ? userMeta.name.trim() : 'Staff Member',
+                email: (authUser.email || rawId).toLowerCase(),
+                phone: typeof userMeta.phone === 'string' ? userMeta.phone : (authUser.phone || ''),
+                designation: typeof userMeta.designation === 'string' ? userMeta.designation : rawAppRole || 'admin',
+                role: rawAppRole || 'admin',
+                permissions: Array.isArray(appMeta.permissions) ? appMeta.permissions.map(String) : ['all'],
+                is_blocked: appMeta.is_blocked === true,
+                totp_enabled: appMeta.totp_enabled === true,
+                is_first_login: appMeta.is_first_login === true,
+                is_root_super_admin: appMeta.is_root_super_admin === true,
+              };
+            } else {
+              await supabase.auth.signOut();
+              return {
+                success: false,
+                error: 'सुरक्षा सत्यापन में समस्या: आपका स्टाफ अकाउंट लोड नहीं हो सका। कृपया पुनः प्रयास करें। (Unable to load staff account. Database query failure while resolving staff identity.)',
+              };
+            }
           }
 
           // Rule D: Detect ambiguous matches across both identity vectors
@@ -241,7 +328,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: Ambiguous identity mapping detected across staff records.',
+              error: 'सुरक्षा त्रुटि: अकाउंट पहचान में टकराव मिला। कृपया सपोर्ट से संपर्क करें। (Ambiguous identity mapping detected across staff records.)',
             };
           }
 
@@ -255,10 +342,31 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Identity mapping conflict: staff record is bound to another authenticated identity.',
+                error: 'सुरक्षा त्रुटि: यह स्टाफ अकाउंट किसी अन्य प्रोफाइल से जुड़ा है। (Identity mapping conflict: staff record is bound to another authenticated identity.)',
               };
             }
             staffRow = rawRow;
+          }
+
+          // Fallback to verified server-signed app_metadata if staffRow is still null
+          if (!staffRow) {
+            const rawAppRole = typeof appMeta.role === 'string' ? appMeta.role : null;
+            if (isStaffRole(rawAppRole)) {
+              staffRow = {
+                id: authUid,
+                auth_user_id: authUid,
+                name: typeof userMeta.name === 'string' && userMeta.name.trim() ? userMeta.name.trim() : 'Staff Member',
+                email: (authUser.email || rawId).toLowerCase(),
+                phone: typeof userMeta.phone === 'string' ? userMeta.phone : (authUser.phone || ''),
+                designation: typeof userMeta.designation === 'string' ? userMeta.designation : rawAppRole || 'admin',
+                role: rawAppRole || 'admin',
+                permissions: Array.isArray(appMeta.permissions) ? appMeta.permissions.map(String) : ['all'],
+                is_blocked: appMeta.is_blocked === true,
+                totp_enabled: appMeta.totp_enabled === true,
+                is_first_login: appMeta.is_first_login === true,
+                is_root_super_admin: appMeta.is_root_super_admin === true,
+              };
+            }
           }
 
           // STEP 4: Verify authenticated UID matches database account UID or mapped auth_user_id
@@ -267,7 +375,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: No matching authorized staff record found in the database for this identity.',
+              error: 'स्टाफ अकाउंट अधिकृत नहीं है: इस ईमेल से कोई स्टाफ रिकॉर्ड नहीं मिला। (No matching authorized staff record found in the database for this identity.)',
             };
           }
 
@@ -277,7 +385,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Database account email does not match authentication token identity.',
+                error: 'ईमेल सत्यापन विफल: अकाउंट ईमेल मेल नहीं खाता। (Database account email does not match authentication token identity.)',
               };
             }
           } else if (normPhone) {
@@ -286,7 +394,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Database account mobile number does not match authenticated identity.',
+                error: 'मोबाइल सत्यापन विफल: रजिस्टर्ड मोबाइल नंबर मेल नहीं खाता। (Database account mobile number does not match authenticated identity.)',
               };
             }
           }
@@ -303,7 +411,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: This portal is restricted to Super Admin and Department Admin accounts. Please use Staff Login.',
+                error: 'यह पोर्टल केवल एडमिन के लिए है। यदि आप स्टाफ सदस्य हैं, तो कृपया "Staff" टैब चुनें। (This portal is restricted to Admins. Please select Staff Login.)',
               };
             }
           } else {
@@ -312,7 +420,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Account is not authorized for standard staff workspace access. Please use Admin Login.',
+                error: 'यह पोर्टल केवल स्टाफ के लिए है। यदि आप एडमिन हैं, तो कृपया "Admin" टैब चुनें। (This portal is restricted to Staff. Please select Admin Login.)',
               };
             }
           }
@@ -323,7 +431,7 @@ export const UnifiedAuthService = {
             return {
               success: false,
               isBlocked: true,
-              error: 'Staff account has been blocked or suspended by Super Admin. Access is revoked.',
+              error: 'सुरक्षा सूचना: यह स्टाफ अकाउंट व्यवस्थापक द्वारा निलंबित (Blocked) है। (Staff account has been blocked or suspended by Super Admin.)',
             };
           }
 
@@ -336,7 +444,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Temporary password invitation has expired (72h limit). Please contact Super Admin to generate a new invitation.',
+              error: 'अस्थायी पासवर्ड की समय सीमा (72 घंटे) समाप्त हो चुकी है। कृपया नया पासवर्ड प्राप्त करने के लिए एडमिन से संपर्क करें। (Temporary password invitation has expired.)',
             };
           }
 
@@ -351,7 +459,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: Account has no assigned operational permissions. Contact Super Admin.',
+              error: 'इस अकाउंट को अभी कोई परमिशन आवंटित नहीं है। कृपया एडमिन से संपर्क करें। (Account has no assigned operational permissions. Contact Super Admin.)',
             };
           }
 
@@ -418,7 +526,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: This account is registered for Administrative / Staff access, not as a Restaurant Partner. Please use Admin or Staff login.',
+              error: 'यह अकाउंट एडमिन / स्टाफ के लिए पंजीकृत है। कृपया एडमिन या स्टाफ पोर्टल से लॉगिन करें। (This account is registered for Administrative / Staff access, not as a Restaurant Partner.)',
             };
           }
 
@@ -434,7 +542,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: No matching authorized Restaurant Partner record found in the database for this identity.',
+              error: 'पार्टनर अकाउंट नहीं मिला: कृपया पहले "Create Account" पर जाकर अपना रेस्टोरेंट रजिस्टर करें। (No matching authorized Restaurant Partner record found in the database for this identity.)',
             };
           }
 
@@ -444,7 +552,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Database account email does not match authentication token identity.',
+                error: 'ईमेल सत्यापन विफल: अकाउंट ईमेल मेल नहीं खाता। (Database account email does not match authentication token identity.)',
               };
             }
           } else if (normPhone) {
@@ -453,7 +561,7 @@ export const UnifiedAuthService = {
               await supabase.auth.signOut();
               return {
                 success: false,
-                error: 'Access denied: Database account mobile number does not match authenticated identity.',
+                error: 'मोबाइल सत्यापन विफल: रजिस्टर्ड मोबाइल नंबर मेल नहीं खाता। (Database account mobile number does not match authenticated identity.)',
               };
             }
           }
@@ -463,7 +571,7 @@ export const UnifiedAuthService = {
             await supabase.auth.signOut();
             return {
               success: false,
-              error: 'Access denied: Account role is not authorized for the Partner Portal.',
+              error: 'यह अकाउंट पार्टनर पोर्टल के लिए अधिकृत नहीं है। (Account role is not authorized for the Partner Portal.)',
             };
           }
 
@@ -473,7 +581,7 @@ export const UnifiedAuthService = {
             return {
               success: false,
               isBlocked: true,
-              error: 'Partner account has been suspended or blocked. Please contact Harit Jal Operations.',
+              error: 'सुरक्षा सूचना: यह पार्टनर अकाउंट निलंबित (Blocked) है। सहायता के लिए सपोर्ट टीम (+91 62992 93497) से संपर्क करें। (Partner account has been suspended or blocked.)',
             };
           }
 
@@ -507,7 +615,7 @@ export const UnifiedAuthService = {
           const msg = err instanceof Error ? err.message : 'Authentication service error';
           return {
             success: false,
-            error: `Authentication failed: ${msg}. Please try again shortly.`,
+            error: `लॉगिन में समस्या आई: कृपया कुछ क्षण बाद पुनः प्रयास करें या सहायता के लिए +91 62992 93497 पर संपर्क करें। (${msg})`,
           };
         }
       }

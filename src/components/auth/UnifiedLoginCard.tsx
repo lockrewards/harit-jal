@@ -128,13 +128,20 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
         soundPlayer.playSuccessChime();
         onSuccess(res);
       } else {
-        setError(res.error || 'Authentication failed. Please verify your credentials.');
+        let displayErr = res.error || 'गलत ईमेल/मोबाइल या पासवर्ड। कृपया पुनः जाँचें। (Authentication failed.)';
+        if (displayErr.includes('non-2xx') || displayErr.includes('Edge Function')) {
+          displayErr = 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल आईडी से लॉगिन करें। (Invalid mobile number or password.)';
+        }
+        setError(displayErr);
         soundPlayer.playBubblePop();
       }
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
-      setError(msg);
+      const cleanMsg = msg.includes('non-2xx') || msg.includes('Edge Function')
+        ? 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल आईडी से लॉगिन करें।'
+        : msg;
+      setError(cleanMsg);
       soundPlayer.playBubblePop();
     }
   };
@@ -243,7 +250,14 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
       {error && (
         <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-start gap-2 shadow-2xs animate-shake">
           <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1 space-y-1">
+            <span>{error}</span>
+            {isPhone && (error.includes('गलत') || error.includes('Invalid') || error.includes('failed')) && (
+              <p className="text-[11px] text-[#4B5563] font-normal pt-1.5 border-t border-red-200/60">
+                💡 <strong>सुझाव:</strong> यदि मोबाइल नंबर से लॉगिन नहीं हो रहा है, तो कृपया अपनी <strong>रजिस्टर्ड ईमेल आईडी</strong> दर्ज करके लॉगिन करें।
+              </p>
+            )}
+          </div>
         </div>
       )}
 
