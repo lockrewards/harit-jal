@@ -4,6 +4,7 @@ import { hashPasswordPBKDF2, verifyPassword } from './cryptoUtils';
 import { getSupabaseClient, isSupabaseConfigured, SupabaseService } from './supabase';
 import { isProductionEnvironment, readViteEnv } from './env';
 import { normalizeIndianPhoneNumber } from './phoneUtils';
+import { validatePasswordCriteria } from '../components/auth/PasswordCriteriaChecklist';
 
 const STORAGE_KEYS = {
   CUSTOMERS: 'harit_jal_customers_v1',
@@ -150,6 +151,13 @@ export const CustomerAuthService = {
   }> {
     if (!data.password || data.password.trim().length < 8) {
       return { success: false, error: 'Password must be at least 8 characters long.' };
+    }
+    const pwdRes = validatePasswordCriteria(data.password);
+    if (!pwdRes.isValid) {
+      return {
+        success: false,
+        error: `मजबूत पासवर्ड आवश्यक है: ${pwdRes.missingRequirements.join(', ')} शामिल करें। (Password must be at least 8 characters and contain uppercase, lowercase, number, and special character.)`,
+      };
     }
     if (!data.email || !data.email.includes('@')) {
       return { success: false, error: 'A valid email address is required.' };

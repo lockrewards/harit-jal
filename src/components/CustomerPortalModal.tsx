@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
-  X, PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle, UserCheck, AlertTriangle
+  X, PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle, UserCheck, AlertTriangle, Eye, EyeOff
 } from 'lucide-react';
 import { CustomerAccount, CustomerOrder, CallBooking } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
@@ -13,6 +13,7 @@ import { CustomerOtpCard } from './CustomerOtpCard';
 import { InlineOtpSection } from './InlineOtpSection';
 import { CustomerProfileSettingsModal } from './CustomerProfileSettingsModal';
 import { UnifiedLoginCard } from './auth/UnifiedLoginCard';
+import { PasswordCriteriaChecklist, validatePasswordCriteria } from './auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
 
 interface CustomerPortalModalProps {
@@ -61,6 +62,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
   const [signupEmail, setSignupEmail] = useState(prefillEmail || '');
   const [signupCity, setSignupCity] = useState(prefillCity || '');
   const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [signupDpdpConsent, setSignupDpdpConsent] = useState(false);
 
   // Place order state
@@ -160,6 +162,13 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
 
     if (!signupPassword || signupPassword.length < 8) {
       setLoginError('Password must be at least 8 characters.');
+      soundPlayer.playBubblePop();
+      return;
+    }
+
+    const pwdCheck = validatePasswordCriteria(signupPassword);
+    if (!pwdCheck.isValid) {
+      setLoginError(`मजबूत पासवर्ड आवश्यक है: ${pwdCheck.missingRequirements.join(', ')} शामिल करें। (Password must be at least 8 characters and contain uppercase, lowercase, number, and special character.)`);
       soundPlayer.playBubblePop();
       return;
     }
@@ -812,16 +821,29 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#102B46] mb-1">Create Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
-                    />
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-bold text-[#102B46] mb-1">Create Password (पासवर्ड बनाएं) *</label>
+                    <div className="relative">
+                      <input
+                        type={showSignupPassword ? 'text' : 'password'}
+                        required
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        placeholder="e.g. Harit@2026#"
+                        className="w-full px-3 py-2 pr-10 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none focus:ring-1 focus:ring-[#C99B43]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#102B46] cursor-pointer"
+                        title={showSignupPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* LIVE PASSWORD REQUIREMENTS CHECKLIST WITH TICKS */}
+                    <PasswordCriteriaChecklist password={signupPassword} />
                   </div>
                 </div>
 
@@ -863,10 +885,14 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
 
                 <button
                   type="submit"
-                  disabled={!isSignupOtpVerified}
+                  disabled={!isSignupOtpVerified || !validatePasswordCriteria(signupPassword).isValid}
                   className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSignupOtpVerified ? 'Create Restaurant Partner Account →' : 'Verify Email OTP to Create Account'}
+                  {!validatePasswordCriteria(signupPassword).isValid && signupPassword
+                    ? 'कृपया सभी पासवर्ड नियम (5/5 Tick) पूरे करें'
+                    : isSignupOtpVerified
+                      ? 'Create Restaurant Partner Account →'
+                      : 'Verify Email OTP to Create Account'}
                 </button>
               </form>
             )}

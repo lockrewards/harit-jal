@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle,
-  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, ChevronUp, User, UserCheck
+  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, ChevronUp, User, UserCheck, Eye, EyeOff
 } from 'lucide-react';
 import { CustomerAccount, CustomerOrder, CallBooking } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
@@ -15,6 +15,7 @@ import { CustomerOtpCard } from '../components/CustomerOtpCard';
 import { InlineOtpSection } from '../components/InlineOtpSection';
 import { CustomerProfileSettingsModal } from '../components/CustomerProfileSettingsModal';
 import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
+import { PasswordCriteriaChecklist, validatePasswordCriteria } from '../components/auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
 
 const getMinDateTimeString = () => {
@@ -82,6 +83,7 @@ export const TrackPage: React.FC = () => {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupCity, setSignupCity] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [signupDpdpConsent, setSignupDpdpConsent] = useState(false);
 
   // Place order state
@@ -216,6 +218,13 @@ export const TrackPage: React.FC = () => {
 
     if (!signupPassword || signupPassword.length < 8) {
       setLoginError('Password must be at least 8 characters.');
+      soundPlayer.playBubblePop();
+      return;
+    }
+
+    const pwdCheck = validatePasswordCriteria(signupPassword);
+    if (!pwdCheck.isValid) {
+      setLoginError(`मजबूत पासवर्ड आवश्यक है: ${pwdCheck.missingRequirements.join(', ')} शामिल करें। (Password must be at least 8 characters and contain uppercase, lowercase, number, and special character.)`);
       soundPlayer.playBubblePop();
       return;
     }
@@ -1299,16 +1308,29 @@ export const TrackPage: React.FC = () => {
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#102C47] mb-1">Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
-                    />
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-bold text-[#102C47] mb-1">Password (मजबूत पासवर्ड बनाएं) *</label>
+                    <div className="relative">
+                      <input
+                        type={showSignupPassword ? 'text' : 'password'}
+                        required
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        placeholder="e.g. Harit@2026#"
+                        className="w-full px-3 py-2 pr-10 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#102C47] cursor-pointer"
+                        title={showSignupPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* LIVE PASSWORD REQUIREMENTS CHECKLIST WITH TICKS */}
+                    <PasswordCriteriaChecklist password={signupPassword} />
                   </div>
                 </div>
 
@@ -1350,10 +1372,14 @@ export const TrackPage: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={!isSignupOtpVerified}
+                  disabled={!isSignupOtpVerified || !validatePasswordCriteria(signupPassword).isValid}
                   className="w-full py-3.5 rounded-full bg-[#0F3826] hover:bg-[#0B2A1C] text-white font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSignupOtpVerified ? 'Create Partner Account →' : 'Verify Email OTP to Create Account'}
+                  {!validatePasswordCriteria(signupPassword).isValid && signupPassword
+                    ? 'कृपया सभी पासवर्ड नियम (5/5 Tick) पूरे करें'
+                    : isSignupOtpVerified
+                      ? 'Create Partner Account →'
+                      : 'Verify Email OTP to Create Account'}
                 </button>
               </form>
             )}

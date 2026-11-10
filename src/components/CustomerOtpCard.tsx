@@ -3,6 +3,7 @@ import {
   ShieldCheck, Clock, RefreshCw, KeyRound, Lock, Eye, EyeOff, AlertTriangle, ArrowLeft, CheckCircle2, Clipboard
 } from 'lucide-react';
 import { OtpService } from '../services/otpService';
+import { PasswordCriteriaChecklist, validatePasswordCriteria } from './auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
 
 interface CustomerOtpCardProps {
@@ -300,6 +301,12 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
       soundPlayer.playBubblePop();
       return;
     }
+    const pwdCheck = validatePasswordCriteria(newPassword);
+    if (!pwdCheck.isValid) {
+      setError(`मजबूत पासवर्ड आवश्यक है: ${pwdCheck.missingRequirements.join(', ')} शामिल करें। (Password must contain at least 8 characters, uppercase, lowercase, number, and special character.)`);
+      soundPlayer.playBubblePop();
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match. Please re-enter.');
       soundPlayer.playBubblePop();
@@ -531,6 +538,8 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                   {newPassword && newPassword.length < 8 && (
                     <p className="text-[10.5px] text-amber-600 mt-1">Password must be at least 8 characters</p>
                   )}
+                  {/* Password Criteria Checklist with Live Ticks */}
+                  <PasswordCriteriaChecklist password={newPassword} />
                 </div>
 
                 <div>
@@ -559,7 +568,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
               <div className="pt-2 space-y-2">
                 <button
                   type="submit"
-                  disabled={isVerifying || !newPassword || newPassword.length < 8 || newPassword !== confirmPassword}
+                  disabled={isVerifying || !newPassword || !validatePasswordCriteria(newPassword).isValid || newPassword !== confirmPassword}
                   className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4 text-[#102C47]" />

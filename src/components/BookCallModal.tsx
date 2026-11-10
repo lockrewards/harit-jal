@@ -28,6 +28,7 @@ import { CustomerAuthService } from '../services/customerAuth';
 import { AutomationService } from '../services/automationService';
 import { ResendService } from '../services/resendService';
 import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
+import { PasswordCriteriaChecklist, validatePasswordCriteria } from './auth/PasswordCriteriaChecklist';
 import { InlineOtpSection } from './InlineOtpSection';
 import { soundPlayer } from '../services/sound';
 
@@ -214,6 +215,14 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
     if (accountPassword.trim().length > 0 && accountPassword.trim().length < 8) {
       setErrorMessage('Password should be at least 8 characters long (or leave empty to skip account creation).');
       return false;
+    }
+
+    if (accountPassword.trim().length > 0) {
+      const pwdRes = validatePasswordCriteria(accountPassword.trim());
+      if (!pwdRes.isValid) {
+        setErrorMessage(`मजबूत पासवर्ड आवश्यक है: ${pwdRes.missingRequirements.join(', ')} शामिल करें। (Password must contain at least 8 characters, uppercase, lowercase, number, and special character.)`);
+        return false;
+      }
     }
 
     if (accountPassword.trim().length >= 8 && !isAccountOtpVerified) {
@@ -779,6 +788,11 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Password Criteria Checklist with Live Ticks */}
+                {accountPassword.trim().length > 0 && (
+                  <PasswordCriteriaChecklist password={accountPassword} />
+                )}
 
                 {/* Inline OTP Section - appears only when password is typed */}
                 {accountPassword.trim().length > 0 && (
