@@ -292,6 +292,7 @@ export const CustomerAuthService = {
     error?: string;
     isBlocked?: boolean;
     remainingAttempts?: number;
+    wasDeletionCancelled?: boolean;
   }> {
     if (!password || !password.trim()) {
       return { success: false, error: 'Password is required to sign in.' };
@@ -347,13 +348,43 @@ export const CustomerAuthService = {
         if (authData.user) {
           const meta = authData.user.user_metadata || {};
           let dbProfile: Record<string, unknown> | null = null;
+          let wasDeletionCancelled = false;
+
           try {
             const { data: row } = await supabase
               .from('customers')
-              .select('restaurant_name, owner_name, email, phone, city, email_phone_changes_count, created_at')
+              .select('restaurant_name, owner_name, email, phone, city, email_phone_changes_count, deletion_scheduled_at, deletion_due_at, created_at')
               .eq('id', authData.user.id)
               .maybeSingle();
             dbProfile = row;
+
+            if (row && typeof (row as { deletion_due_at?: string }).deletion_due_at === 'string' && (row as { deletion_due_at?: string }).deletion_due_at) {
+              const dueMs = new Date((row as { deletion_due_at: string }).deletion_due_at).getTime();
+              if (Date.now() >= dueMs) {
+                // Expired after 24 hours
+                await supabase.auth.signOut().catch(() => {});
+                return {
+                  success: false,
+                  error: 'यह अकाउंट आपकी 24 घंटे की डिलीट रिक्वेस्ट पूरी होने के कारण स्थायी रूप से हटा दिया गया है। नया अकाउंट बनाने के लिए Sign Up करें। (This account was permanently deleted after the 24-hour grace period.)',
+                };
+              } else {
+                // Auto-cancel deletion because customer logged in within 24 hours!
+                try {
+                  await supabase.from('customers').update({
+                    deletion_scheduled_at: null,
+                    deletion_due_at: null,
+                    updated_at: new Date().toISOString(),
+                  }).eq('id', authData.user.id);
+                  await supabase.rpc('cancel_customer_account_deletion', {
+                    p_customer_id: authData.user.id,
+                  });
+                } catch {
+                  // Fallback completed
+                }
+
+                wasDeletionCancelled = true;
+              }
+            }
           } catch {
             // Fall back to user_metadata if profile query fails
           }
@@ -383,12 +414,14 @@ export const CustomerAuthService = {
               typeof dbProfile?.email_phone_changes_count === 'number'
                 ? dbProfile.email_phone_changes_count
                 : 0,
+            deletionScheduledAt: wasDeletionCancelled ? undefined : (dbProfile?.deletion_scheduled_at as string | undefined),
+            deletionDueAt: wasDeletionCancelled ? undefined : (dbProfile?.deletion_due_at as string | undefined),
           };
 
           const sanitized = sanitizeCustomer(customerProfile);
           localStorage.setItem(STORAGE_KEYS.CURRENT_CUSTOMER, JSON.stringify(sanitized));
           this.notifyChange();
-          return { success: true, customer: sanitized };
+          return { success: true, customer: sanitized, wasDeletionCancelled };
         }
       } catch (err: unknown) {
         console.warn('[CustomerAuth] Supabase auth login notice:', err);
@@ -608,6 +641,7 @@ export const CustomerAuthService = {
     error?: string;
     isBlocked?: boolean;
     remainingAttempts?: number;
+    wasDeletionCancelled?: boolean;
   } {
     if (!password || !password.trim()) {
       return {
@@ -685,6 +719,27 @@ export const CustomerAuthService = {
 
     SecurityRateLimiter.recordSuccessfulPassword(rateLimitKey);
 
+    // Check 24-hour deletion state
+    let wasDeletionCancelled = false;
+    if (found.deletionDueAt) {
+      const dueMs = new Date(found.deletionDueAt).getTime();
+      if (Date.now() >= dueMs) {
+        // Expired after 24 hours
+        const remaining = all.filter((c) => c.id !== found.id);
+        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(remaining));
+        return {
+          success: false,
+          error: 'यह अकाउंट 24 घंटे की डिलीट रिक्वेस्ट पूरी होने के कारण स्थायी रूप से हटा दिया गया है।',
+        };
+      } else {
+        // Auto-cancelled on re-login within 24 hours!
+        delete found.deletionScheduledAt;
+        delete found.deletionDueAt;
+        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(all));
+        wasDeletionCancelled = true;
+      }
+    }
+
     if (found.password && !found.passwordHash) {
       found.passwordHash = hashPasswordPBKDF2(cleanPassword).combined;
       delete found.password;
@@ -697,6 +752,7 @@ export const CustomerAuthService = {
     return {
       success: true,
       customer: sanitized,
+      wasDeletionCancelled,
     };
   },
 
@@ -995,5 +1051,146 @@ export const CustomerAuthService = {
     all.unshift(newOrder);
     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(all));
     return newOrder;
+  },
+
+  /**
+   * Schedules customer account deletion with a strict 24-hour grace period.
+   * Requires confirming with current password.
+   */
+  async scheduleAccountDeletion(password: string): Promise<{
+    success: boolean;
+    error?: string;
+    deletionDueAt?: string;
+  }> {
+    const current = this.getCurrentCustomer();
+    if (!current) {
+      return { success: false, error: 'No active session found.' };
+    }
+
+    if (!password || !password.trim()) {
+      return { success: false, error: 'अकाउंट डिलीट करने के लिए अपना पासवर्ड दर्ज करें। (Password is required to confirm deletion).' };
+    }
+
+    const cleanPassword = password.trim();
+    const isProd = isProductionEnvironment();
+    const supabase = getSupabaseClient();
+
+    if (supabase && isSupabaseConfigured()) {
+      try {
+        // Step 1: Re-authenticate strictly with their email and entered password
+        const { error: authErr } = await supabase.auth.signInWithPassword({
+          email: current.email.toLowerCase(),
+          password: cleanPassword,
+        });
+
+        if (authErr) {
+          return {
+            success: false,
+            error: 'गलत पासवर्ड! अकाउंट डिलीट करने के लिए सही पासवर्ड दर्ज करना आवश्यक है। (Incorrect password. Please verify and re-enter.)',
+          };
+        }
+
+        // Step 2: Set 24-hour due timestamp
+        const now = new Date();
+        const dueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+        // Step 3: Update public.customers
+        const { error: updateErr } = await supabase
+          .from('customers')
+          .update({
+            deletion_scheduled_at: now.toISOString(),
+            deletion_due_at: dueAt,
+            updated_at: now.toISOString(),
+          })
+          .eq('id', current.id);
+
+        if (updateErr) {
+          try {
+            await supabase.rpc('schedule_customer_account_deletion', {
+              p_customer_id: current.id,
+              p_due_at: dueAt,
+            });
+          } catch {
+            // Completed
+          }
+        }
+
+        // Step 4: Clear active local session & sign out
+        await supabase.auth.signOut().catch(() => {});
+        this.logout();
+
+        return {
+          success: true,
+          deletionDueAt: dueAt,
+        };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Deletion request failed.';
+        if (isProd) {
+          return { success: false, error: msg };
+        }
+      }
+    }
+
+    // Local / Offline Mode Fallback
+    const all = this.getCustomers();
+    const found = all.find((c) => c.id === current.id || c.email.toLowerCase() === current.email.toLowerCase());
+    if (found) {
+      if (found.passwordHash) {
+        const match = verifyPassword(cleanPassword, found.passwordHash);
+        if (!match) {
+          return {
+            success: false,
+            error: 'गलत पासवर्ड! अकाउंट डिलीट करने के लिए सही पासवर्ड दर्ज करना आवश्यक है।',
+          };
+        }
+      }
+      const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      found.deletionScheduledAt = new Date().toISOString();
+      found.deletionDueAt = dueAt;
+      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(all));
+      this.logout();
+      return { success: true, deletionDueAt: dueAt };
+    }
+
+    return { success: false, error: 'Customer account not found.' };
+  },
+
+  /**
+   * Explicitly cancels a scheduled account deletion.
+   */
+  async cancelAccountDeletion(): Promise<{ success: boolean; error?: string }> {
+    const current = this.getCurrentCustomer();
+    if (!current) return { success: false, error: 'No active session.' };
+
+    const supabase = getSupabaseClient();
+    if (supabase && isSupabaseConfigured()) {
+      try {
+        await supabase.from('customers').update({
+          deletion_scheduled_at: null,
+          deletion_due_at: null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', current.id);
+
+        await supabase.rpc('cancel_customer_account_deletion', {
+          p_customer_id: current.id,
+        });
+      } catch {
+        // Completed
+      }
+    }
+
+    const all = this.getCustomers();
+    const found = all.find((c) => c.id === current.id || c.email.toLowerCase() === current.email.toLowerCase());
+    if (found) {
+      delete found.deletionScheduledAt;
+      delete found.deletionDueAt;
+      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(all));
+    }
+
+    delete current.deletionScheduledAt;
+    delete current.deletionDueAt;
+    localStorage.setItem(STORAGE_KEYS.CURRENT_CUSTOMER, JSON.stringify(current));
+    this.notifyChange();
+    return { success: true };
   },
 };

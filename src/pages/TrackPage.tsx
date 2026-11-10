@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle,
-  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, ChevronUp, User, UserCheck, Eye, EyeOff
+  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, AlertTriangle, ChevronUp, User, UserCheck, Eye, EyeOff, Trash2
 } from 'lucide-react';
 import { CustomerAccount, CustomerOrder, CallBooking } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
@@ -14,6 +14,7 @@ import { isProductionEnvironment } from '../services/env';
 import { CustomerOtpCard } from '../components/CustomerOtpCard';
 import { InlineOtpSection } from '../components/InlineOtpSection';
 import { CustomerProfileSettingsModal } from '../components/CustomerProfileSettingsModal';
+import { CustomerDeleteAccountModal } from '../components/CustomerDeleteAccountModal';
 import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
 import { PasswordCriteriaChecklist, validatePasswordCriteria } from '../components/auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
@@ -61,6 +62,9 @@ export const TrackPage: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot_password' | 'verify_signup_otp' | 'verify_reset_otp' | 'recovery'>('login');
   const [isSignupOtpVerified, setIsSignupOtpVerified] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deletionNotice, setDeletionNotice] = useState<string | null>(null);
+  const [deletionCancelledBanner, setDeletionCancelledBanner] = useState(false);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -541,7 +545,7 @@ export const TrackPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -555,6 +559,19 @@ export const TrackPage: React.FC = () => {
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => {
+                    soundPlayer.playBubblePop();
+                    setShowDeleteAccountModal(true);
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-1.5 border border-red-200 transition cursor-pointer"
+                  title="अकाउंट डिलीट करें (24 घंटे की सुरक्षा अवधि)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Delete Account</span>
+                </button>
+
+                <button
                   onClick={handleLogout}
                   className="px-4 py-1.5 rounded-full bg-[#F8F3E9] hover:bg-white text-[#102C47] text-xs font-semibold flex items-center gap-1.5 border border-[#C99B42]/30 transition cursor-pointer"
                 >
@@ -563,6 +580,17 @@ export const TrackPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Auto-cancellation banner on login */}
+            {deletionCancelledBanner && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-start gap-2 shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p>🎉 <strong>स्वागत है!</strong> 24 घंटे के भीतर लॉगिन करने पर आपके अकाउंट डिलीट करने की रिक्वेस्ट रद्द कर दी गई है।</p>
+                  <p className="text-[11px] font-normal text-emerald-700 mt-0.5">आपका अकाउंट और ऑर्डर हिस्ट्री पूरी तरह सक्रिय और सुरक्षित हैं।</p>
+                </div>
+              </div>
+            )}
 
             {orderSuccess && (
               <div className="p-3.5 rounded-2xl bg-[#52652D]/10 border border-[#52652D] text-[#52652D] text-xs font-bold flex items-center gap-2">
@@ -1212,6 +1240,15 @@ export const TrackPage: React.FC = () => {
             {/* 1. SIGN IN FORM: UNIFIED LOGIN CARD */}
             {mode === 'login' && (
               <div className="max-w-md mx-auto space-y-4">
+                {deletionNotice && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2 shadow-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <p className="font-bold">⚠️ अकाउंट डिलीट की रिक्वेस्ट शेड्यूल की गई है</p>
+                      <p className="text-[11.5px] leading-relaxed text-amber-800">{deletionNotice}</p>
+                    </div>
+                  </div>
+                )}
                 {loginSuccess && (
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1226,6 +1263,10 @@ export const TrackPage: React.FC = () => {
                     const cust = result.customer || result.partnerUser;
                     if (result.accountType === 'partner' && cust) {
                       setCurrentUser(cust);
+                      if (result.wasDeletionCancelled) {
+                        setDeletionCancelledBanner(true);
+                        setDeletionNotice(null);
+                      }
                       void refreshData(cust.email);
                       setScheduleName(cust.ownerName || '');
                       setSchedulePhone(cust.phone || '');
@@ -1607,6 +1648,31 @@ export const TrackPage: React.FC = () => {
           onUpdated={(updated) => {
             setCurrentUser(updated);
             void refreshData(updated.email);
+          }}
+          onDeletionScheduled={(dueAt) => {
+            setShowProfileSettings(false);
+            setCurrentUser(null);
+            setDeletionNotice(
+              `अकाउंट डिलीट रिक्वेस्ट दर्ज हो चुकी है। यह 24 घंटे में स्थायी रूप से हटा दिया जाएगा। यदि आप इसे रद्द करना चाहते हैं, तो 24 घंटे के भीतर बस दोबारा लॉगिन कर लें।`
+            );
+            setMode('login');
+          }}
+        />
+      )}
+
+      {/* Customer Delete Account Modal */}
+      {currentUser && showDeleteAccountModal && (
+        <CustomerDeleteAccountModal
+          isOpen={showDeleteAccountModal}
+          customer={currentUser}
+          onClose={() => setShowDeleteAccountModal(false)}
+          onDeletionScheduled={(dueAt) => {
+            setShowDeleteAccountModal(false);
+            setCurrentUser(null);
+            setDeletionNotice(
+              `अकाउंट डिलीट रिक्वेस्ट दर्ज हो चुकी है। यह 24 घंटे में स्थायी रूप से हटा दिया जाएगा। यदि आप इसे रद्द करना चाहते हैं, तो 24 घंटे के भीतर बस दोबारा लॉगिन कर लें।`
+            );
+            setMode('login');
           }}
         />
       )}

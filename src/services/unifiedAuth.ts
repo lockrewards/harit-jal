@@ -49,6 +49,7 @@ export interface UnifiedAuthResult {
   partnerUser?: CustomerAccount;
   customer?: CustomerAccount;
   adminSession?: AdminSession;
+  wasDeletionCancelled?: boolean;
 }
 
 interface StaffUserRow {
@@ -533,9 +534,42 @@ export const UnifiedAuthService = {
           // STEP 3: Fetch authoritative record from public.customers
           const { data: customerRow, error: custDbError } = await supabase
             .from('customers')
-            .select('id, restaurant_name, owner_name, email, phone, city, email_phone_changes_count, created_at')
+            .select('id, restaurant_name, owner_name, email, phone, city, email_phone_changes_count, deletion_scheduled_at, deletion_due_at, created_at')
             .eq('id', authUid)
             .maybeSingle();
+
+          // Check 24-hour deletion state
+          let wasDeletionCancelled = false;
+          const custRecord = customerRow as Record<string, unknown> | null;
+          if (custRecord && typeof custRecord.deletion_due_at === 'string' && custRecord.deletion_due_at) {
+            const dueMs = new Date(custRecord.deletion_due_at).getTime();
+            if (Date.now() >= dueMs) {
+              await supabase.auth.signOut().catch(() => {});
+              return {
+                success: false,
+                error: 'यह अकाउंट आपकी 24 घंटे की डिलीट रिक्वेस्ट पूरी होने के कारण स्थायी रूप से हटा दिया गया है। नया अकाउंट बनाने के लिए Sign Up करें। (This account was permanently deleted after the 24-hour grace period.)',
+              };
+            } else {
+              // User logged in within 24 hours -> AUTO CANCEL DELETION!
+              try {
+                await supabase.from('customers').update({
+                  deletion_scheduled_at: null,
+                  deletion_due_at: null,
+                  updated_at: new Date().toISOString(),
+                }).eq('id', authUid);
+
+                await supabase.rpc('cancel_customer_account_deletion', {
+                  p_customer_id: authUid,
+                });
+              } catch {
+                // Completed
+              }
+
+              custRecord.deletion_scheduled_at = null;
+              custRecord.deletion_due_at = null;
+              wasDeletionCancelled = true;
+            }
+          }
 
           // STEP 4: Verify authenticated UID matches database account UID
           if (custDbError || !customerRow || customerRow.id !== authUid) {
@@ -608,6 +642,7 @@ export const UnifiedAuthService = {
             accountType: 'partner',
             partnerUser,
             customer: partnerUser,
+            wasDeletionCancelled: wasDeletionCancelled || undefined,
           };
         }
       } catch (err: unknown) {

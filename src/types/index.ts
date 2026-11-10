@@ -117,6 +117,8 @@ export interface CustomerAccount {
   city: string;
   createdAt: string;
   emailPhoneChangesCount?: number;
+  deletionScheduledAt?: string;
+  deletionDueAt?: string;
   /** @deprecated Passwords are managed exclusively by Supabase Auth (auth.users). Never store passwords in CustomerAccount. */
   password?: string;
   /** @deprecated Password hashes are managed exclusively by Supabase Auth (auth.users). Never store hashes in CustomerAccount. */

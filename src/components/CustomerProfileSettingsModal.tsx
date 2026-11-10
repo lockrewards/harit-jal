@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { UserCheck, Mail, Smartphone, MapPin, Building, X, Check, AlertTriangle } from 'lucide-react';
+import { UserCheck, Mail, Smartphone, MapPin, Building, X, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import { CustomerAccount } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
+import { CustomerDeleteAccountModal } from './CustomerDeleteAccountModal';
 import { soundPlayer } from '../services/sound';
 
 interface CustomerProfileSettingsModalProps {
@@ -9,6 +10,7 @@ interface CustomerProfileSettingsModalProps {
   customer: CustomerAccount;
   onClose: () => void;
   onUpdated: (updatedCustomer: CustomerAccount) => void;
+  onDeletionScheduled?: (dueAt: string) => void;
 }
 
 export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModalProps> = ({
@@ -16,12 +18,14 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
   customer,
   onClose,
   onUpdated,
+  onDeletionScheduled,
 }) => {
   const [ownerName, setOwnerName] = useState(customer.ownerName);
   const [restaurantName, setRestaurantName] = useState(customer.restaurantName);
   const [email, setEmail] = useState(customer.email);
   const [phone, setPhone] = useState(customer.phone);
   const [city, setCity] = useState(customer.city);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -251,9 +255,50 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
               {isSubmitting ? 'Updating Profile...' : 'Save Profile Changes'}
             </button>
           </div>
+
+          {/* DANGER ZONE - DELETE ACCOUNT */}
+          <div className="pt-4 border-t border-red-200">
+            <div className="p-3.5 rounded-2xl bg-red-50/70 border border-red-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-red-900 block">
+                  Delete Restaurant Account
+                </span>
+                <p className="text-[11px] text-red-700/80 mt-0.5">
+                  अकाउंट डिलीट शेड्यूल करें (24 घंटे की सुरक्षा अवधि)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  soundPlayer.playBubblePop();
+                  setShowDeleteModal(true);
+                }}
+                className="px-3.5 py-1.5 rounded-full bg-white hover:bg-red-600 hover:text-white text-red-700 text-xs font-bold border border-red-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Account</span>
+              </button>
+            </div>
+          </div>
         </form>
 
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <CustomerDeleteAccountModal
+          isOpen={showDeleteModal}
+          customer={customer}
+          onClose={() => setShowDeleteModal(false)}
+          onDeletionScheduled={(dueAt) => {
+            setShowDeleteModal(false);
+            onClose();
+            if (onDeletionScheduled) {
+              onDeletionScheduled(dueAt);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
