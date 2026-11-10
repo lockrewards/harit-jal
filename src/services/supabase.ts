@@ -189,8 +189,9 @@ export const SupabaseService = {
     if (!supabase) return false;
 
     try {
-      const { error } = await supabase.from('consultations').insert({
-        id: lead.id,
+      let candidateId = lead.id;
+      let { error } = await supabase.from('consultations').insert({
+        id: candidateId,
         restaurant_name: lead.restaurantName,
         owner_name: lead.ownerName,
         phone: lead.phone,
@@ -202,6 +203,26 @@ export const SupabaseService = {
         status: lead.status || 'New',
         created_at: new Date().toISOString(),
       });
+
+      // If duplicate key error, auto-retry once with a fresh timestamp ID
+      if (error && (error.code === '23505' || error.message.includes('duplicate key'))) {
+        candidateId = `HJ-2026-${Date.now().toString().slice(-5)}${Math.floor(10 + Math.random() * 90)}`;
+        const retryRes = await supabase.from('consultations').insert({
+          id: candidateId,
+          restaurant_name: lead.restaurantName,
+          owner_name: lead.ownerName,
+          phone: lead.phone,
+          email: lead.email.trim().toLowerCase(),
+          city: lead.city,
+          preferred_time: lead.preferredTime,
+          bottle_types: lead.bottleTypes || [],
+          notes: lead.notes || '',
+          status: lead.status || 'New',
+          created_at: new Date().toISOString(),
+        });
+        error = retryRes.error;
+      }
+
       if (error) console.warn('[Supabase] Consultation insert error:', error.message);
       return !error;
     } catch {

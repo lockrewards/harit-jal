@@ -200,7 +200,9 @@ export const StorageService = {
 
   addBooking(booking: Omit<CallBooking, 'id' | 'createdAt' | 'status' | 'assignedTo' | 'syncedToGoogleSheets'>): CallBooking {
     const all = this.getBookings();
-    const newId = `HJ-2026-${String(all.length + 84).padStart(3, '0')}`;
+    // Collision-resistant ID combining timestamp and random digits to avoid DB primary key collisions across client devices
+    const uniqueSuffix = `${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
+    const newId = `HJ-2026-${uniqueSuffix}`;
     const users = this.getUsers();
     const salesUser = users.find((u) => normalizeStaffRole(u.role) === 'sales_manager') || users[0];
 
