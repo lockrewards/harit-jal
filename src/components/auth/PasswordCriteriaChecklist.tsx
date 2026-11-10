@@ -136,3 +136,4 @@ export const PasswordCriteriaChecklist: React.FC<PasswordCriteriaChecklistProps>
     </div>
   );
 };
+

@@ -171,3 +171,4 @@ export const CustomerDeleteAccountModal: React.FC<CustomerDeleteAccountModalProp
     </div>
   );
 };
+

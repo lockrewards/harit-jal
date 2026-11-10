@@ -67,3 +67,4 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.cancel_customer_account_deletion(UUID) TO authenticated, service_role;
+
