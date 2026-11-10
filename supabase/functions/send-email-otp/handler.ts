@@ -1200,6 +1200,55 @@ export async function handleSendEmailOtpRequest(req: Request, deps: SendEmailOtp
   }
 
   // ---------------------------------------------------------------------------
+  // ACTION: CHECK_USER_EXISTS (Check if Email or Phone is already registered)
+  // ---------------------------------------------------------------------------
+  if (action === "check_user_exists") {
+    const emailRaw = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const rawPhone = typeof body.phone === "string" ? body.phone.replace(/\D/g, "") : "";
+    const cleanPhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : "";
+
+    let byEmail = false;
+    let byPhone = false;
+
+    if (emailRaw && isValidEmail(emailRaw)) {
+      try {
+        const { data: userRow } = await supabaseAdmin
+          .from("customers")
+          .select("email")
+          .eq("email", emailRaw)
+          .maybeSingle();
+        if (userRow && userRow.email) {
+          byEmail = true;
+        }
+      } catch {}
+    }
+
+    if (cleanPhone) {
+      try {
+        const { data: phoneRow } = await supabaseAdmin
+          .from("customers")
+          .select("phone")
+          .eq("phone", cleanPhone)
+          .maybeSingle();
+        if (phoneRow && phoneRow.phone) {
+          byPhone = true;
+        }
+      } catch {}
+    }
+
+    return jsonResponse(
+      {
+        success: true,
+        exists: byEmail || byPhone,
+        byEmail,
+        byPhone,
+      },
+      200,
+      corsHeaders
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // ACTION: SEND_OTP
   // ---------------------------------------------------------------------------
   if (action === "send_otp") {
@@ -1294,6 +1343,57 @@ export async function handleSendEmailOtpRequest(req: Request, deps: SendEmailOtp
           corsHeaders,
           { "Retry-After": String(waitSeconds) }
         );
+      }
+    }
+
+    // Enforce maximum 3 OTP requests in 24 hours per email
+    const email24hRate = await consumeRateLimitBucket(
+      supabaseAdmin,
+      `otp_send_24h:${cleanEmail}`,
+      3,
+      86400
+    );
+    if (!email24hRate.allowed) {
+      try {
+        await supabaseAdmin.from("security_blocks").insert({
+          target_key: `id:${cleanEmail}`,
+          target_type: "id",
+          identifier: cleanEmail,
+          source_vector: "otp",
+          blocked_until: new Date(nowMs + BLOCK_DURATION_MS).toISOString(),
+          reason: "Exceeded maximum 3 OTP requests in 24 hours.",
+        });
+      } catch {
+        // Non-fatal if already blocked
+      }
+      return jsonResponse(
+        {
+          success: false,
+          isBlocked: true,
+          error: "सुरक्षा लॉक: 24 घंटे में अधिकतम 3 बार ही OTP भेजा जा सकता है। आपका अकाउंट और डिवाइस 24 घंटे के लिए लॉक कर दिया गया है। (Security Lockout: Maximum 3 OTP requests allowed per 24 hours. Locked for 24 hours.)",
+        },
+        403,
+        corsHeaders
+      );
+    }
+
+    // For signup, verify if email is already registered in DB
+    if (purpose === "signup") {
+      try {
+        const { data: userRow } = await supabaseAdmin.from("customers").select("email").eq("email", cleanEmail).maybeSingle();
+        if (userRow && (userRow as { email?: string }).email) {
+          return jsonResponse(
+            {
+              success: false,
+              alreadyRegistered: true,
+              error: "यह ईमेल आईडी पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो 'Forgot Password' का उपयोग करें। (This Email ID is already registered. Please Login or use Forgot Password.)",
+            },
+            409,
+            corsHeaders
+          );
+        }
+      } catch {
+        // Non-fatal
       }
     }
 
@@ -1587,11 +1687,14 @@ export async function handleSendEmailOtpRequest(req: Request, deps: SendEmailOtp
 
     if (outcome === "invalid") {
       const attemptsRemaining = Math.max(1, Number(rpcRow.attempts_remaining ?? 1));
+      const warningPrefix = attemptsRemaining === 2
+        ? "⚠️ गलत OTP कोड! 2 और गलत प्रयासों के बाद आपका अकाउंट 24 घंटे के लिए लॉक हो जाएगा।"
+        : "🚨 अंतिम चेतावनी: केवल 1 प्रयास शेष है! इसके बाद आपका अकाउंट 24 घंटे के लिए ब्लॉक हो जाएगा।";
       return jsonResponse(
         {
           success: false,
           attemptsRemaining,
-          error: `Incorrect 6-digit verification code. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} remaining before 24-hour lockout.`,
+          error: `${warningPrefix} (Incorrect 6-digit verification code. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} remaining before 24-hour lockout.)`,
         },
         401,
         corsHeaders

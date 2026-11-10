@@ -15,6 +15,12 @@ export interface AttemptCounter {
   lastAttemptAt: number;
 }
 
+export interface OtpSendCounter {
+  count: number;
+  firstSendAt: number;
+  lastSendAt: number;
+}
+
 export interface BlockCheckResult {
   isBlocked: boolean;
   blockedBy?: 'id' | 'device' | 'ip';
@@ -28,6 +34,7 @@ const STORAGE_KEYS = {
   BLOCK_RECORDS: 'harit_jal_security_blocks_v2',
   PASSWORD_ATTEMPTS: 'harit_jal_password_attempts_v2',
   OTP_ATTEMPTS: 'harit_jal_otp_attempts_v2',
+  OTP_SENDS: 'harit_jal_otp_sends_v2',
   DEVICE_ID: 'harit_jal_device_id_v1',
   CLIENT_IP: 'harit_jal_client_ip_v1',
 };
@@ -441,15 +448,110 @@ export class SecurityRateLimiter {
         isBlocked: true,
         attemptsRemaining: 0,
         remainingFormatted: blockRes.remainingFormatted,
-        error: 'Maximum 3 wrong OTP attempts reached. Your account ID, device, and IP address are locked for 24 hours for security.',
+        error: `⛔ सुरक्षा लॉक: 3 बार गलत OTP दर्ज करने के कारण आपका अकाउंट, डिवाइस और नेटवर्क 24 घंटे के लिए लॉक कर दिया गया है। (Maximum 3 wrong attempts reached. Locked for ${blockRes.remainingFormatted}.)`,
       };
     }
 
     const remaining = SECURITY_CONFIG.MAX_WRONG_ATTEMPTS - maxAttempts;
+    const warningPrefix = remaining === 2
+      ? '⚠️ गलत OTP कोड! 2 और गलत प्रयासों के बाद आपका अकाउंट 24 घंटे के लिए लॉक हो जाएगा।'
+      : '🚨 अंतिम चेतावनी: केवल 1 प्रयास शेष है! इसके बाद आपका अकाउंट 24 घंटे के लिए ब्लॉक हो जाएगा।';
+
     return {
       isBlocked: false,
       attemptsRemaining: remaining,
-      error: `Incorrect verification code. ${remaining} attempt(s) remaining before 24-hour block on your ID, device, and network.`,
+      error: `${warningPrefix} (Incorrect verification code. ${remaining} attempt(s) remaining before 24-hour block on your ID, device, and network.)`,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 7. OTP Send Quota Tracking (Max 3 OTP Dispatches per 24h)
+  // -------------------------------------------------------------
+  private static getOtpSendAttempts(): Record<string, OtpSendCounter> {
+    try {
+      const raw = this.getStorageItem(STORAGE_KEYS.OTP_SENDS);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private static saveOtpSendAttempts(sends: Record<string, OtpSendCounter>): void {
+    this.setStorageItem(STORAGE_KEYS.OTP_SENDS, JSON.stringify(sends));
+  }
+
+  /**
+   * Enforces maximum 3 OTP requests in 24 hours per identifier/device/network.
+   * If exceeded (attempting > 3 times), triggers 24-hour multi-vector lockout.
+   */
+  public static checkAndRecordOtpSend(
+    identifier: string,
+    deviceId?: string,
+    ip?: string
+  ): {
+    allowed: boolean;
+    isBlocked: boolean;
+    sendsRemaining: number;
+    error?: string;
+    remainingFormatted?: string;
+  } {
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanDevice = (deviceId || this.getDeviceId()).trim();
+    const cleanIp = (ip || this.getClientIp()).trim();
+
+    // Check if already blocked by any vector
+    const priorCheck = this.checkBlock(cleanId, cleanDevice, cleanIp);
+    if (priorCheck.isBlocked) {
+      return {
+        allowed: false,
+        isBlocked: true,
+        sendsRemaining: 0,
+        remainingFormatted: priorCheck.remainingFormatted,
+        error: `सुरक्षा लॉक सक्रिय: 24 घंटे का सुरक्षा लॉक लगा हुआ है। शेष समय: ${priorCheck.remainingFormatted}. (Security Lockout Active. Remaining: ${priorCheck.remainingFormatted})`,
+      };
+    }
+
+    const sendsMap = this.getOtpSendAttempts();
+    const now = Date.now();
+    const WINDOW_MS = SECURITY_CONFIG.BLOCK_DURATION_MS; // 24 hours
+
+    const key = `send:${cleanId}`;
+    const cur = sendsMap[key];
+
+    let currentRecord: OtpSendCounter;
+    if (!cur || now - cur.firstSendAt > WINDOW_MS) {
+      currentRecord = { count: 0, firstSendAt: now, lastSendAt: now };
+    } else {
+      currentRecord = { ...cur };
+    }
+
+    if (currentRecord.count >= 3) {
+      const blockRes = this.enforce24HourBlock(
+        cleanId,
+        cleanDevice,
+        cleanIp,
+        'Exceeded maximum 3 OTP requests in 24 hours.',
+        'otp'
+      );
+      return {
+        allowed: false,
+        isBlocked: true,
+        sendsRemaining: 0,
+        remainingFormatted: blockRes.remainingFormatted,
+        error: `सुरक्षा लॉक: 24 घंटे में अधिकतम 3 बार ही OTP भेजा जा सकता है। आपका अकाउंट और डिवाइस 24 घंटे के लिए लॉक कर दिया गया है। (Maximum 3 OTP requests allowed per 24 hours. Locked for ${blockRes.remainingFormatted}.)`,
+      };
+    }
+
+    currentRecord.count += 1;
+    currentRecord.lastSendAt = now;
+    sendsMap[key] = currentRecord;
+    this.saveOtpSendAttempts(sendsMap);
+
+    const sendsRemaining = 3 - currentRecord.count;
+    return {
+      allowed: true,
+      isBlocked: false,
+      sendsRemaining,
     };
   }
 

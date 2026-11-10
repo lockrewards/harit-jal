@@ -150,9 +150,11 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
           inputRefs.current[0]?.focus();
         }, 100);
       } else {
-        if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours')) {
+        if (res.alreadyRegistered) {
+          setError(res.error || 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें।');
+        } else if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours') || res.error?.includes('सुरक्षा लॉक')) {
           setIsBlocked(true);
-          setBlockMessage(res.error || 'Blocked for 24 hours.');
+          setBlockMessage(res.error || 'सुरक्षा लॉक: 24 घंटे के लिए लॉक कर दिया गया है। (Blocked for 24 hours.)');
         } else {
           if (typeof res.resendInSeconds === 'number' && res.resendInSeconds > 0) {
             setResendSeconds(res.resendInSeconds);
@@ -391,9 +393,26 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
 
           {/* Feedback messages */}
           {error && (
-            <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-              <span>{error}</span>
+            <div className={`p-2.5 rounded-xl border text-xs font-medium flex items-start gap-2 ${
+              attemptsRemaining === 1
+                ? 'bg-red-100/90 border-red-300 text-red-900 animate-pulse'
+                : attemptsRemaining === 2
+                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                attemptsRemaining === 1 ? 'text-red-700' : attemptsRemaining === 2 ? 'text-amber-700' : 'text-red-600'
+              }`} />
+              <div className="flex-1 space-y-1.5">
+                <span>{error}</span>
+                {(error.includes('पहले से रजिस्टर्ड') || error.includes('already registered')) && (
+                  <div className="pt-1">
+                    <p className="text-[11px] font-bold text-[#102C47]">
+                      💡 यदि पासवर्ड भूल गए हैं तो लॉगिन पेज पर "Forgot Password" पर क्लिक करके नया पासवर्ड सेट कर सकते हैं।
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -472,9 +491,13 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
 
             {/* 3 Attempts Badge */}
             <span className={`px-2 py-0.5 rounded-full font-medium ${
-              attemptsRemaining <= 1 ? 'bg-red-100 text-red-800' : 'bg-white text-[#77766F] border border-[#C99B42]/20'
+              attemptsRemaining === 1
+                ? 'bg-red-100 text-red-800 border border-red-300 font-bold animate-pulse'
+                : attemptsRemaining === 2
+                ? 'bg-amber-100 text-amber-800 border border-amber-300 font-bold'
+                : 'bg-white text-[#77766F] border border-[#C99B42]/20'
             }`}>
-              {attemptsRemaining} of 3 attempts left
+              {attemptsRemaining === 1 ? '🚨 केवल 1 प्रयास बाकी!' : attemptsRemaining === 2 ? '⚠️ 2 प्रयास बाकी' : `${attemptsRemaining} of 3 attempts left`}
             </span>
           </div>
         </div>

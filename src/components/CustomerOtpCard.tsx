@@ -218,9 +218,11 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
         setTimeout(() => setSuccessMsg(null), 4000);
         inputRefs.current[0]?.focus();
       } else {
-        if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours')) {
+        if (res.alreadyRegistered) {
+          setError(res.error || 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें।');
+        } else if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours') || res.error?.includes('सुरक्षा लॉक')) {
           setIsBlocked(true);
-          setBlockMessage(res.error || 'Blocked for 24 hours.');
+          setBlockMessage(res.error || 'सुरक्षा लॉक: 24 घंटे के लिए लॉक कर दिया गया है। (Blocked for 24 hours.)');
         } else {
           if (typeof res.resendInSeconds === 'number' && res.resendInSeconds > 0) {
             setResendSeconds(res.resendInSeconds);
@@ -450,9 +452,30 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
         <div>
           {/* Error Banner */}
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-start gap-2 mb-4">
-              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-2 mb-4 ${
+              attemptsRemaining === 1
+                ? 'bg-red-100/90 border-red-300 text-red-900 animate-pulse'
+                : attemptsRemaining === 2
+                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${
+                attemptsRemaining === 1 ? 'text-red-700' : attemptsRemaining === 2 ? 'text-amber-700' : 'text-red-600'
+              }`} />
+              <div className="flex-1 space-y-2">
+                <span>{error}</span>
+                {(error.includes('पहले से रजिस्टर्ड') || error.includes('already registered')) && onBackToLogin && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={onBackToLogin}
+                      className="px-3.5 py-1.5 rounded-lg bg-[#102C47] text-white text-xs font-bold hover:bg-[#1B3F63] transition cursor-pointer shadow-xs"
+                    >
+                      Login to Your Account →
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -627,12 +650,14 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                 </div>
 
                 {/* Attempts Remaining Indicator (Max 3 wrong attempts rule) */}
-                <div className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                  attemptsRemaining <= 1 
-                    ? 'bg-red-100 text-red-800' 
-                    : 'bg-[#F8F5EC] text-[#35432D]'
+                <div className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                  attemptsRemaining === 1 
+                    ? 'bg-red-100 text-red-800 border border-red-300 font-bold animate-pulse' 
+                    : attemptsRemaining === 2
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300 font-bold'
+                    : 'bg-[#F8F5EC] text-[#35432D] border border-[#C99A3C]/20'
                 }`}>
-                  {attemptsRemaining} of 3 attempts left
+                  {attemptsRemaining === 1 ? '🚨 केवल 1 प्रयास बाकी!' : attemptsRemaining === 2 ? '⚠️ 2 प्रयास बाकी' : `${attemptsRemaining} of 3 attempts left`}
                 </div>
               </div>
 

@@ -195,6 +195,8 @@ export const OtpService = {
     resendAvailableAt?: number;
     resendInSeconds?: number;
     isBlocked?: boolean;
+    alreadyRegistered?: boolean;
+    sendsRemaining?: number;
   }> {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -209,6 +211,31 @@ export const OtpService = {
         isBlocked: true,
         error: `Security Lockout: This account ID, device, and network are blocked for 24 hours due to multiple failed verification attempts. Time remaining: ${blockStatus.remainingFormatted}.`,
       };
+    }
+
+    // 2. Check 24-hour OTP send quota (maximum 3 sends per 24 hours)
+    const sendQuota = SecurityRateLimiter.checkAndRecordOtpSend(cleanEmail);
+    if (!sendQuota.allowed) {
+      return {
+        success: false,
+        isBlocked: true,
+        error: sendQuota.error || 'सुरक्षा लॉक: 24 घंटे में अधिकतम 3 बार ही OTP भेजा जा सकता है।',
+      };
+    }
+
+    // 3. For signup, verify if email or phone is already registered in DB
+    if (purpose === 'signup') {
+      const phone = typeof (pendingData as { phone?: string } | null | undefined)?.phone === 'string'
+        ? (pendingData as { phone?: string }).phone
+        : undefined;
+      const alreadyRegisteredCheck = await CustomerAuthService.checkIfAlreadyRegistered(cleanEmail, phone);
+      if (alreadyRegisteredCheck.exists) {
+        return {
+          success: false,
+          alreadyRegistered: true,
+          error: alreadyRegisteredCheck.error || 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें।',
+        };
+      }
     }
 
     const isProd = isProductionEnvironment();

@@ -164,6 +164,13 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
       return;
     }
 
+    const alreadyRegistered = await CustomerAuthService.checkIfAlreadyRegistered(signupEmail, signupPhone);
+    if (alreadyRegistered.exists) {
+      setLoginError(alreadyRegistered.error || 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें।');
+      soundPlayer.playBubblePop();
+      return;
+    }
+
     if (!isSignupOtpVerified) {
       setLoginError('Please click "Send OTP on Email" below and verify your 6-digit code before creating your account.');
       soundPlayer.playBubblePop();
@@ -717,7 +724,35 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
               <form onSubmit={handleSignUp} className="max-w-lg mx-auto space-y-3.5">
                 {loginError && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-                    {loginError}
+                    <p>{loginError}</p>
+                    {(loginError.includes('पहले से रजिस्टर्ड') || loginError.includes('already registered')) && (
+                      <div className="flex flex-wrap gap-2 pt-2 mt-2 border-t border-red-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundPlayer.playWaterDrop();
+                            setLoginEmail(signupEmail.trim().toLowerCase());
+                            setLoginError(null);
+                            setMode('login');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#102C46] text-white text-xs font-bold hover:bg-[#1B3F63] transition cursor-pointer shadow-xs"
+                        >
+                          Sign In Now →
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundPlayer.playWaterDrop();
+                            setForgotEmail(signupEmail.trim().toLowerCase());
+                            setLoginError(null);
+                            setMode('forgot_password');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#C99B43] text-[#102C46] text-xs font-bold hover:bg-[#B38734] transition cursor-pointer shadow-xs"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -2,7 +2,7 @@ import { CustomerAccount, CustomerOrder } from '../types';
 import { SecurityRateLimiter } from './securityRateLimiter';
 import { hashPasswordPBKDF2, verifyPassword } from './cryptoUtils';
 import { getSupabaseClient, isSupabaseConfigured, SupabaseService } from './supabase';
-import { isProductionEnvironment } from './env';
+import { isProductionEnvironment, readViteEnv } from './env';
 import { normalizeIndianPhoneNumber } from './phoneUtils';
 
 const STORAGE_KEYS = {
@@ -145,6 +145,7 @@ export const CustomerAuthService = {
     success: boolean;
     customer?: CustomerAccount;
     requiresEmailConfirmation?: boolean;
+    alreadyRegistered?: boolean;
     error?: string;
   }> {
     if (!data.password || data.password.trim().length < 8) {
@@ -165,6 +166,15 @@ export const CustomerAuthService = {
           ? `${window.location.origin}/track`
           : 'https://haritjal.in/track';
 
+        const preCheck = await this.checkIfAlreadyRegistered(cleanEmail, data.phone);
+        if (preCheck.exists) {
+          return {
+            success: false,
+            alreadyRegistered: true,
+            error: preCheck.error || 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें। (This Email ID or Mobile Number is already registered. Please Login or use Forgot Password.)',
+          };
+        }
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: cleanPassword,
@@ -183,6 +193,14 @@ export const CustomerAuthService = {
 
         if (authError) {
           return { success: false, error: authError.message };
+        }
+
+        if (authData.user && Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+          return {
+            success: false,
+            alreadyRegistered: true,
+            error: 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें। (This Email ID or Mobile Number is already registered. Please Login or use Forgot Password.)',
+          };
         }
 
         if (authData.user) {
@@ -443,6 +461,114 @@ export const CustomerAuthService = {
     }
     const res = this.loginWithSecurity(email, password);
     return res.success ? (res.customer || null) : null;
+  },
+
+  /**
+   * Checks whether an email address or mobile number is already registered in the DB.
+   * Checks local persistence, Supabase RPC `check_user_registered`, and edge function.
+   */
+  async checkIfAlreadyRegistered(
+    email: string,
+    phone?: string
+  ): Promise<{
+    exists: boolean;
+    byEmail: boolean;
+    byPhone: boolean;
+    error?: string;
+  }> {
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
+    const normPhone = phone ? normalizeIndianPhoneNumber(phone) : null;
+    const cleanDigits = normPhone?.isValid ? normPhone.digits10 : '';
+
+    // 1. Fast local check
+    const localCust = this.getCustomers();
+    let localEmailMatch = false;
+    let localPhoneMatch = false;
+    for (const c of localCust) {
+      if (cleanEmail && c.email.toLowerCase() === cleanEmail) {
+        localEmailMatch = true;
+      }
+      if (cleanDigits && c.phone) {
+        const cPhone = normalizeIndianPhoneNumber(c.phone);
+        if (cPhone.isValid && cPhone.digits10 === cleanDigits) {
+          localPhoneMatch = true;
+        }
+      }
+    }
+
+    if (localEmailMatch || localPhoneMatch) {
+      return {
+        exists: true,
+        byEmail: localEmailMatch,
+        byPhone: localPhoneMatch,
+        error: 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें। (This Email ID or Mobile Number is already registered. Please Login or use Forgot Password.)',
+      };
+    }
+
+    // 2. Cloud Supabase Check (via Edge Function or RPC)
+    const supabase = getSupabaseClient();
+    if (supabase && isSupabaseConfigured()) {
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('check_user_registered', {
+          p_email: cleanEmail,
+          p_phone: cleanDigits || phone || '',
+        });
+
+        if (!rpcErr && rpcData && typeof rpcData === 'object') {
+          const res = rpcData as { registered?: boolean; by_email?: boolean; by_phone?: boolean };
+          if (res.registered) {
+            return {
+              exists: true,
+              byEmail: Boolean(res.by_email),
+              byPhone: Boolean(res.by_phone),
+              error: 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें। (This Email ID or Mobile Number is already registered. Please Login or use Forgot Password.)',
+            };
+          }
+        }
+      } catch {
+        // Fall back to edge function
+      }
+
+      try {
+        const supabaseUrl = readViteEnv('VITE_SUPABASE_URL');
+        const anonKey = readViteEnv('VITE_SUPABASE_ANON_KEY');
+        if (supabaseUrl && anonKey) {
+          const edgeUrl = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/send-email-otp`;
+          const res = await fetch(edgeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({
+              action: 'check_user_exists',
+              email: cleanEmail,
+              phone: cleanDigits || phone || '',
+            }),
+          });
+          if (res.ok) {
+            const data = (await res.json().catch(() => ({}))) as {
+              exists?: boolean;
+              byEmail?: boolean;
+              byPhone?: boolean;
+            };
+            if (data.exists) {
+              return {
+                exists: true,
+                byEmail: Boolean(data.byEmail),
+                byPhone: Boolean(data.byPhone),
+                error: 'यह ईमेल आईडी या मोबाइल नंबर पहले से रजिस्टर्ड है। कृपया लॉगिन करें, या यदि पासवर्ड भूल गए हैं तो "Forgot Password" का उपयोग करें। (This Email ID or Mobile Number is already registered. Please Login or use Forgot Password.)',
+              };
+            }
+          }
+        }
+      } catch {
+        // Network or edge query silent fallback
+      }
+    }
+
+    return { exists: false, byEmail: false, byPhone: false };
   },
 
   /**
