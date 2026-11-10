@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
   X,
@@ -20,13 +20,51 @@ import {
   ArrowRight,
   Droplets,
   MessageSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { CallBooking } from '../types';
 import { StorageService } from '../services/storage';
 import { CustomerAuthService } from '../services/customerAuth';
 import { AutomationService } from '../services/automationService';
+import { ResendService } from '../services/resendService';
+import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
 import { InlineOtpSection } from './InlineOtpSection';
 import { soundPlayer } from '../services/sound';
+
+const getMinDateTimeString = () => {
+  const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const year = minTime.getFullYear();
+  const month = String(minTime.getMonth() + 1).padStart(2, '0');
+  const day = String(minTime.getDate()).padStart(2, '0');
+  const hours = String(minTime.getHours()).padStart(2, '0');
+  const minutes = String(minTime.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const getDefaultDateTimeString = () => {
+  const d = new Date(Date.now() + 2.5 * 60 * 60 * 1000);
+  d.setMinutes(d.getMinutes() >= 30 ? 60 : 30, 0, 0);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatDisplayDateTime = (dateTimeStr: string) => {
+  try {
+    const d = new Date(dateTimeStr);
+    if (isNaN(d.getTime())) return dateTimeStr;
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return dateTimeStr;
+  }
+};
 
 interface BookCallModalProps {
   isOpen: boolean;
@@ -55,12 +93,12 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
   onBookingSuccess,
   onOpenCustomerPortal,
 }) => {
-  // Pre-fill fields matching reference design
-  const [restaurantName, setRestaurantName] = useState(initialData?.restaurantName || 'Om Dhaba');
-  const [ownerName, setOwnerName] = useState('Atal Pandey');
-  const [phone, setPhone] = useState('+91 62992 93497');
-  const [email, setEmail] = useState('info@haritjal.in');
-  const [city, setCity] = useState('Banuchhapar, Bettiah, Bihar India');
+  // Form fields start cleanly empty without hardcoded demo credentials
+  const [restaurantName, setRestaurantName] = useState(initialData?.restaurantName || '');
+  const [ownerName, setOwnerName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [city, setCity] = useState('');
 
   // Multi-select bottle formats (default 500ml and 750ml selected, matching reference image)
   const [selectedFormats, setSelectedFormats] = useState<string[]>(() => {
@@ -75,47 +113,15 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   // Specific requests
-  const [specificRequests, setSpecificRequests] = useState(
-    'Require custom typography with our restaurant identity on bottles.'
-  );
+  const [specificRequests, setSpecificRequests] = useState('');
 
-  // Preferred Date Time state (Must be >= 2 hours from current time)
-  const getMinDateTimeString = () => {
-    const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
-    const year = minTime.getFullYear();
-    const month = String(minTime.getMonth() + 1).padStart(2, '0');
-    const day = String(minTime.getDate()).padStart(2, '0');
-    const hours = String(minTime.getHours()).padStart(2, '0');
-    const minutes = String(minTime.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
+  // Lazily compute date bounds to avoid impure Date.now() calls during render
+  const [{ minDateTime, defaultCallDateTime }] = useState(() => ({
+    minDateTime: getMinDateTimeString(),
+    defaultCallDateTime: getDefaultDateTimeString(),
+  }));
 
-  const getDefaultDateTimeString = () => {
-    const d = new Date(Date.now() + 2.5 * 60 * 60 * 1000);
-    d.setMinutes(d.getMinutes() >= 30 ? 60 : 30, 0, 0);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  const formatDisplayDateTime = (dateTimeStr: string) => {
-    try {
-      const d = new Date(dateTimeStr);
-      if (isNaN(d.getTime())) return dateTimeStr;
-      return d.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-    } catch {
-      return dateTimeStr;
-    }
-  };
-
-  const [callDateTime, setCallDateTime] = useState(() => getDefaultDateTimeString());
+  const [callDateTime, setCallDateTime] = useState(defaultCallDateTime);
 
   // DPDP Act 2023 consent
   const [dpdpConsent, setDpdpConsent] = useState(true);
@@ -125,7 +131,20 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedBooking, setSubmittedBooking] = useState<CallBooking | null>(null);
   const [accountCreated, setAccountCreated] = useState(false);
+  const [accountCreationError, setAccountCreationError] = useState<string | null>(null);
   const [isAccountOtpVerified, setIsAccountOtpVerified] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        soundPlayer.playBubblePop();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -192,12 +211,12 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
       return false;
     }
 
-    if (accountPassword.trim().length > 0 && accountPassword.trim().length < 6) {
-      setErrorMessage('Password should be at least 6 characters long (or leave empty to skip account creation).');
+    if (accountPassword.trim().length > 0 && accountPassword.trim().length < 8) {
+      setErrorMessage('Password should be at least 8 characters long (or leave empty to skip account creation).');
       return false;
     }
 
-    if (accountPassword.trim().length >= 6 && !isAccountOtpVerified) {
+    if (accountPassword.trim().length >= 8 && !isAccountOtpVerified) {
       setErrorMessage('Please click "Send OTP on Email" and verify your 6-digit code to create your partner account.');
       return false;
     }
@@ -210,7 +229,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
     return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -219,82 +238,159 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
     }
 
     setIsSubmitting(true);
+    setAccountCreationError(null);
     soundPlayer.playWaterDrop();
 
-    setTimeout(() => {
-      try {
-        const primarySize = (selectedFormats[0] || '500ml') as '250ml' | '500ml' | '750ml_glass' | '1000ml';
+    try {
+      const primarySize = (selectedFormats[0] || '500ml') as '250ml' | '500ml' | '750ml_glass' | '1000ml';
 
-        // 1. Save Call Booking record in local storage
-        const newBooking = StorageService.addBooking({
+      // 1. Save Call Booking record in local storage (inquiry succeeds independently)
+      const cleanRequirements = specificRequests.trim();
+      const newBooking = StorageService.addBooking({
+        restaurantName: restaurantName.trim(),
+        ownerName: ownerName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        city: city.trim(),
+        bottleSize: primarySize,
+        bottleFormats: selectedFormats,
+        monthlyVolume: 3000,
+        capColor: initialData?.capColor || 'royal_gold',
+        labelStyle: initialData?.labelTheme || 'dhaba_heritage',
+        preferredDateTime: formatDisplayDateTime(callDateTime),
+        notes: cleanRequirements,
+        source: 'website_form',
+      });
+
+      const dbNotes = cleanRequirements
+        ? `[Source: Website Form (Consultation Modal)] ${cleanRequirements}`
+        : '[Source: Website Form (Consultation Modal)] Bespoke dining bottle tasting consultation';
+
+      const leadSynced = await SupabaseService.syncConsultationLead({
+        id: newBooking.id,
+        restaurantName: newBooking.restaurantName,
+        ownerName: newBooking.ownerName,
+        phone: newBooking.phone,
+        email: newBooking.email,
+        city: newBooking.city,
+        preferredTime: newBooking.preferredDateTime,
+        bottleTypes: selectedFormats,
+        notes: dbNotes,
+        status: newBooking.status,
+      });
+
+      if (isSupabaseConfigured() && !leadSynced) {
+        StorageService.setBookings(
+          StorageService.getBookings().filter((b) => b.id !== newBooking.id)
+        );
+        soundPlayer.playBubblePop();
+        setIsSubmitting(false);
+        setErrorMessage(
+          'Unable to save consultation request to our cloud server right now. Please try again shortly or contact +91 62992 93497 directly.'
+        );
+        return;
+      }
+
+      // 2. Save or update lead in CRM Automation & trigger notifications (after cloud sync succeeds)
+      AutomationService.saveOrUpdateLead({
+        id: newBooking.id,
+        customerName: ownerName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        businessName: restaurantName.trim(),
+        location: city.trim(),
+        bottleSize: selectedFormats.join(', '),
+        customerRequirements: cleanRequirements,
+        sourcePage: 'Website Form (Consultation Modal)',
+        inquirySource: 'website_form',
+        leadStatus: 'New',
+      });
+
+      if (isSupabaseConfigured()) {
+        void ResendService.sendConsultationConfirmation({
+          bookingId: newBooking.id,
+          restaurantName: newBooking.restaurantName,
+          ownerName: newBooking.ownerName,
+          email: newBooking.email,
+          phone: newBooking.phone,
+          preferredTime: newBooking.preferredDateTime,
+          city: newBooking.city,
+        });
+        void ResendService.sendAdminLeadAlert({
+          id: newBooking.id,
+          customerName: newBooking.ownerName,
+          email: newBooking.email,
+          phone: newBooking.phone,
+          businessName: newBooking.restaurantName,
+          location: newBooking.city,
+          bottleSize: selectedFormats.join(', '),
+          customerRequirements: cleanRequirements,
+          sourcePage: 'Website Form (Consultation Modal)',
+        });
+      }
+
+      // 3. Optional Partner Account Creation (requires OTP verification)
+      let createdAccount = false;
+      let accountFailNotice: string | null = null;
+
+      if (accountPassword.trim().length >= 8 && isAccountOtpVerified) {
+        // Await Supabase Auth registration - prevent background dispatch (FINDING 1B-02)
+        const authRes = await CustomerAuthService.signUpWithSupabaseAuth({
           restaurantName: restaurantName.trim(),
           ownerName: ownerName.trim(),
-          phone: phone.trim(),
           email: email.trim(),
+          phone: phone.trim(),
           city: city.trim(),
-          bottleSize: primarySize,
-          bottleFormats: selectedFormats,
-          monthlyVolume: 3000,
-          capColor: initialData?.capColor || 'royal_gold',
-          labelStyle: initialData?.labelTheme || 'dhaba_heritage',
-          preferredDateTime: formatDisplayDateTime(callDateTime),
-          notes: specificRequests.trim(),
+          password: accountPassword.trim(),
         });
 
-        // 2. Save or update lead in CRM Automation & trigger notifications
-        AutomationService.saveOrUpdateLead({
-          customerName: ownerName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          businessName: restaurantName.trim(),
-          location: city.trim(),
-          bottleSize: selectedFormats.join(', '),
-          customerRequirements: specificRequests.trim(),
-          sourcePage: 'Consultation Modal',
-          leadStatus: 'New',
-        });
-
-        // 3. Optional Partner Account Creation (requires OTP verification)
-        let createdAccount = false;
-        if (accountPassword.trim().length >= 6 && isAccountOtpVerified) {
-          CustomerAuthService.register({
-            restaurantName: restaurantName.trim(),
-            ownerName: ownerName.trim(),
-            email: email.trim(),
-            phone: phone.trim(),
-            city: city.trim(),
-            password: accountPassword.trim(),
-          });
+        if (authRes.success && authRes.customer) {
           createdAccount = true;
+        } else if (authRes.success && authRes.requiresEmailConfirmation) {
+          accountFailNotice = 'Account created! Please check your email inbox and click the confirmation link before signing in.';
+        } else {
+          // If Supabase registration fails, DO NOT create an orphaned local customer session!
+          // Preserve consultation enquiry independently and notify user
+          accountFailNotice = authRes.error || 'Partner account creation could not be completed.';
+          console.warn('[BookCall] Supabase registration notice:', accountFailNotice);
         }
-
-        confetti({
-          particleCount: 90,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#C99B42', '#52652D', '#102C47'],
-        });
-
-        soundPlayer.playSuccessChime();
-        setIsSubmitting(false);
-        setAccountCreated(createdAccount);
-        setSubmittedBooking(newBooking);
-
-        if (onBookingSuccess) {
-          onBookingSuccess(newBooking);
-        }
-      } catch (err) {
-        console.error('Call booking error:', err);
-        setIsSubmitting(false);
-        setErrorMessage('An unexpected error occurred while booking. Please try again or call +91 62992 93497 directly.');
       }
-    }, 450);
+
+      confetti({
+        particleCount: 90,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#C99B42', '#52652D', '#102C47'],
+      });
+
+      soundPlayer.playSuccessChime();
+      setIsSubmitting(false);
+      setAccountCreated(createdAccount);
+      setSubmittedBooking(newBooking);
+      if (accountFailNotice) {
+        setAccountCreationError(accountFailNotice);
+      }
+
+      if (onBookingSuccess) {
+        onBookingSuccess(newBooking);
+      }
+    } catch (err) {
+      console.error('Call booking error:', err);
+      setIsSubmitting(false);
+      setErrorMessage('An unexpected error occurred while booking. Please try again or call +91 62992 93497 directly.');
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-[#102C47]/70 backdrop-blur-md overflow-y-auto font-manrope">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-[#102C47]/70 backdrop-blur-md overflow-y-auto font-manrope cursor-pointer"
+      onClick={() => {
+        soundPlayer.playBubblePop();
+        onClose();
+      }}
+    >
       <div
-        className="relative w-full max-w-2xl bg-[#FFFDF9] border border-[#C99B42]/45 rounded-3xl shadow-[0_25px_60px_rgba(16,44,71,0.28)] flex flex-col overflow-hidden text-[#102C47] my-auto"
+        className="relative w-full max-w-2xl bg-[#FFFDF9] border border-[#C99B42]/45 rounded-3xl shadow-[0_25px_60px_rgba(16,44,71,0.28)] flex flex-col overflow-hidden text-[#102C47] my-auto cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top-Left Luxury Gold Flourish Accent */}
@@ -425,6 +521,14 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                     <span>Partner Account created! Track samples anytime at /track.</span>
                   </div>
                 )}
+                {accountCreationError && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-medium flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Account Notice:</strong> Consultation is confirmed, but partner account creation could not be completed ({accountCreationError}). You can create your account directly via the Restaurant Portal.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
@@ -475,7 +579,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                       required
                       value={restaurantName}
                       onChange={(e) => setRestaurantName(e.target.value)}
-                      placeholder="e.g. Om Dhaba"
+                      placeholder="Your business name"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] placeholder-[#77766F]/60 focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs"
                     />
                   </div>
@@ -495,7 +599,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                       required
                       value={ownerName}
                       onChange={(e) => setOwnerName(e.target.value)}
-                      placeholder="e.g. Atal Pandey"
+                      placeholder="Your name"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] placeholder-[#77766F]/60 focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs"
                     />
                   </div>
@@ -518,7 +622,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                       required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+91 62992 93497"
+                      placeholder="1234567890"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] placeholder-[#77766F]/60 focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs font-mono"
                     />
                   </div>
@@ -538,7 +642,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="atal@gmail.com"
+                      placeholder="your@gmail.com"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] placeholder-[#77766F]/60 focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs"
                     />
                   </div>
@@ -559,7 +663,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                     required
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    placeholder="e.g. Bettiah, Bihar"
+                    placeholder="Your business location"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] placeholder-[#77766F]/60 focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs"
                   />
                 </div>
@@ -577,7 +681,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
                   <input
                     type="datetime-local"
                     required
-                    min={getMinDateTimeString()}
+                    min={minDateTime}
                     value={callDateTime}
                     onChange={(e) => setCallDateTime(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs font-semibold text-[#102C47] focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-xs"

@@ -1,32 +1,31 @@
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
-import { PhoneCall, Mail, MapPin, Building, User, Send, CheckCircle2, Droplets, Clock, ShieldCheck, Lock } from 'lucide-react';
+import { PhoneCall, Mail, MapPin, Send, CheckCircle2, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { StorageService } from '../services/storage';
-import { CustomerAuthService } from '../services/customerAuth';
+import { AutomationService } from '../services/automationService';
+import { ResendService } from '../services/resendService';
+import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
 import { soundPlayer } from '../services/sound';
 import { CallBooking } from '../types';
 
-interface ContactPageProps {
-  onOpenCustomerPortal?: (email: string) => void;
-}
-
-export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }) => {
-  const [restaurantName, setRestaurantName] = useState('Karan The Dhaba');
-  const [ownerName, setOwnerName] = useState('Karanpreet Singh');
-  const [phone, setPhone] = useState('+91 62992 93497');
-  const [email, setEmail] = useState('info@haritjal.in');
-  const [city, setCity] = useState('Murthal, GT Road, Haryana');
+export const ContactPage: React.FC = () => {
+  const [restaurantName, setRestaurantName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [city, setCity] = useState('');
   const [bottleSize, setBottleSize] = useState<'250ml' | '500ml' | '750ml_glass' | '1000ml'>('500ml');
-  const [dailyRequirement, setDailyRequirement] = useState<number>(120);
-  const [message, setMessage] = useState('Interested in 500ml glass bottles with custom logo and menu QR code.');
-  const [password, setPassword] = useState('password123');
-  const [dpdpConsent, setDpdpConsent] = useState(true);
+  const [dailyRequirement, setDailyRequirement] = useState<string>('');
+  const [message, setMessage] = useState('');
+  const [dpdpConsent, setDpdpConsent] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedBooking, setSubmittedBooking] = useState<CallBooking | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (!dpdpConsent) {
       alert('Please agree to the DPDP Act 2023 data processing terms to submit your consultation request.');
       return;
@@ -34,30 +33,93 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
     setIsSubmitting(true);
     soundPlayer.playWaterDrop();
 
-    setTimeout(() => {
+    try {
+      const cleanRestaurant = restaurantName.trim() || 'My Restaurant';
+      const cleanOwner = ownerName.trim() || 'Restaurant Owner';
+      const cleanPhone = phone.trim() || '+91 62992 93497';
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanCity = city.trim() || 'Delhi NCR';
+
+      const cleanRequirements = message.trim();
       const newBooking = StorageService.addBooking({
-        restaurantName: restaurantName.trim() || 'My Restaurant',
-        ownerName: ownerName.trim() || 'Restaurant Owner',
-        phone: phone.trim() || '+91 62992 93497',
-        email: email.trim() || 'info@haritjal.in',
-        city: city.trim() || 'Delhi NCR',
+        restaurantName: cleanRestaurant,
+        ownerName: cleanOwner,
+        phone: cleanPhone,
+        email: cleanEmail,
+        city: cleanCity,
         bottleSize,
-        monthlyVolume: dailyRequirement * 30,
+        monthlyVolume: (parseInt(dailyRequirement, 10) || 100) * 30,
         capColor: 'royal_gold',
         labelStyle: 'classic_luxury',
         preferredDateTime: 'Within 24 Hours',
-        notes: message.trim(),
+        notes: cleanRequirements,
+        source: 'contact_page',
       });
 
-      // Register customer account for seamless order tracking
-      CustomerAuthService.register({
-        restaurantName: restaurantName.trim(),
-        ownerName: ownerName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        city: city.trim(),
-        password: password.trim(),
+      const dbNotes = cleanRequirements
+        ? `[Source: Website Form (Contact Page)] ${cleanRequirements}`
+        : '[Source: Website Form (Contact Page)] Sample bottle & proposal request';
+
+      const leadSynced = await SupabaseService.syncConsultationLead({
+        id: newBooking.id,
+        restaurantName: newBooking.restaurantName,
+        ownerName: newBooking.ownerName,
+        phone: newBooking.phone,
+        email: newBooking.email,
+        city: newBooking.city,
+        preferredTime: newBooking.preferredDateTime,
+        bottleTypes: [bottleSize],
+        notes: dbNotes,
+        status: newBooking.status,
       });
+
+      if (isSupabaseConfigured() && !leadSynced) {
+        StorageService.setBookings(
+          StorageService.getBookings().filter((b) => b.id !== newBooking.id)
+        );
+        soundPlayer.playBubblePop();
+        setSubmitError(
+          'Unable to submit your enquiry to our cloud server right now. Please try again shortly or call +91 62992 93497 directly.'
+        );
+        return;
+      }
+
+      AutomationService.saveOrUpdateLead({
+        id: newBooking.id,
+        customerName: cleanOwner,
+        email: cleanEmail,
+        phone: cleanPhone,
+        businessName: cleanRestaurant,
+        location: cleanCity,
+        bottleSize,
+        customerRequirements: cleanRequirements,
+        sourcePage: 'Website Form (Contact Page)',
+        inquirySource: 'contact_page',
+        leadStatus: 'New',
+      });
+
+      if (isSupabaseConfigured()) {
+        void ResendService.sendConsultationConfirmation({
+          bookingId: newBooking.id,
+          restaurantName: newBooking.restaurantName,
+          ownerName: newBooking.ownerName,
+          email: newBooking.email,
+          phone: newBooking.phone,
+          preferredTime: newBooking.preferredDateTime,
+          city: newBooking.city,
+        });
+        void ResendService.sendAdminLeadAlert({
+          id: newBooking.id,
+          customerName: newBooking.ownerName,
+          email: newBooking.email,
+          phone: newBooking.phone,
+          businessName: newBooking.restaurantName,
+          location: newBooking.city,
+          bottleSize,
+          customerRequirements: cleanRequirements,
+          sourcePage: 'Website Form (Contact Page)',
+        });
+      }
 
       confetti({
         particleCount: 80,
@@ -67,9 +129,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
       });
 
       soundPlayer.playSuccessChime();
-      setIsSubmitting(false);
       setSubmittedBooking(newBooking);
-    }, 500);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -219,6 +282,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                   Request Sample Bottles & Proposal
                 </h3>
 
+                {submitError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{submitError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-[#52652D] mb-1">
@@ -229,7 +299,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       value={restaurantName}
                       onChange={(e) => setRestaurantName(e.target.value)}
-                      placeholder="e.g. Karan The Dhaba"
+                      placeholder="Your business name"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-semibold focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
@@ -243,7 +313,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       value={ownerName}
                       onChange={(e) => setOwnerName(e.target.value)}
-                      placeholder="e.g. Karanpreet Singh"
+                      placeholder="Your name"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-semibold focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
@@ -257,7 +327,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+91 62992 93497"
+                      placeholder="1234567890"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-semibold focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
@@ -271,7 +341,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="owner@restaurant.com"
+                      placeholder="your@gmail.com"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-semibold focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
@@ -285,7 +355,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      placeholder="e.g. Murthal, GT Road, Haryana"
+                      placeholder="Your business location"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102B46] font-semibold focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
@@ -313,18 +383,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                   </label>
                   <div className="flex items-center gap-2.5">
                     <input
-                      type="number"
-                      min="1"
-                      max="10000"
-                      value={dailyRequirement || ''}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
-                        setDailyRequirement(val);
-                      }}
-                      placeholder="120"
-                      className="w-28 px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/40 text-sm font-bold text-[#102C47] focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-inner text-center"
+                      type="text"
+                      value={dailyRequirement}
+                      onChange={(e) => setDailyRequirement(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="Enter approximate daily tables"
+                      className="w-full sm:w-72 px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/40 text-xs sm:text-sm font-semibold text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
-                    <span className="text-xs font-bold text-[#102C47]">
+                    <span className="text-xs font-bold text-[#102C47] shrink-0">
                       tables/day
                     </span>
                   </div>
@@ -338,7 +403,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                     rows={3}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Tell us about your menu, logo preferences, or target launch date..."
+                    placeholder="Tell us about your requirements (e.g., custom logo, label, QR code, etc.)"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                   />
                 </div>
@@ -351,7 +416,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                       required
                       checked={dpdpConsent}
                       onChange={(e) => setDpdpConsent(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded text-[#102C47] accent-[#C99B42] border-[#C99B42]/50 focus:ring-[#C99B42] cursor-pointer shrink-0"
+                      className="mt-0.5 w-4 h-4 rounded text-[#102C47] accent-[#0F3826] border-[#C99B42]/50 focus:ring-[#0F3826] cursor-pointer shrink-0"
                     />
                     <span className="leading-snug">
                       I consent to Harit Jal processing my contact details for sample dispatch, order logistics, and hospitality consultation in full accordance with India&apos;s <strong className="text-[#102C47] font-semibold">Digital Personal Data Protection Act (DPDP Act 2023)</strong>. Your data is strictly encrypted and never shared.
@@ -362,9 +427,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onOpenCustomerPortal }
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-full bg-[#0F3826] hover:bg-[#0B2A1C] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 transition"
                 >
-                  <Send className="w-4 h-4 text-[#102C47]" />
+                  <Send className="w-4 h-4 text-white" />
                   <span>{isSubmitting ? 'Submitting Enquiry...' : 'Submit Enquiry & Request Physical Samples'}</span>
                 </button>
               </form>

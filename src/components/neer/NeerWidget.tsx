@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from '../../router/RouterContext';
+import { useRouter } from '../../router/useRouter';
 import { soundPlayer } from '../../services/sound';
 import { NeerAIService } from '../../services/neerAI';
 import { ChatMessage, ConversationContext, NeerAction } from '../../types/neer';
@@ -75,11 +75,6 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
     }
   }, [messages]);
 
-  // Update current page in context
-  useEffect(() => {
-    setContext((prev) => ({ ...prev, currentPage: currentPath }));
-  }, [currentPath]);
-
   // Blinking eyes animation timer
   useEffect(() => {
     const blinkInterval = setInterval(() => {
@@ -135,8 +130,12 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
     setIsThinking(true);
 
     try {
-      const { response, updatedContext } = await NeerAIService.processMessage(text, messages, context);
-      setContext(updatedContext);
+      const { response, updatedContext } = await NeerAIService.processMessage(
+        text,
+        messages,
+        { ...context, currentPage: currentPath }
+      );
+      setContext({ ...updatedContext, currentPage: currentPath });
 
       setTimeout(() => {
         setIsThinking(false);

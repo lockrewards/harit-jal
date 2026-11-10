@@ -1,20 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-interface RouterContextType {
-  currentPath: string;
-  targetPath: string | null;
-  navigate: (path: string) => void;
-  isNavigating: boolean;
-}
-
-const RouterContext = createContext<RouterContextType>({
-  currentPath: '/',
-  targetPath: null,
-  navigate: () => {},
-  isNavigating: false,
-});
-
-export const useRouter = () => useContext(RouterContext);
+import React, { useState, useEffect, ReactNode } from 'react';
+import { RouterContext, useRouter } from './useRouter';
 
 interface RouterProviderProps {
   children: ReactNode;

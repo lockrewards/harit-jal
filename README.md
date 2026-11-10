@@ -1,6 +1,6 @@
 # Harit Jal (हरित जल) - Custom Branded Water Bottle Platform
 
-> **Tagline (Hindi):** *"आपकी पहचान, हर घूंट में शुद्धता"*  
+> **Tagline (Hindi):** *"हर बूंद में शुद्धता, आपकी अपनी पहचान"*  
 > **Tagline (English):** *"Custom Branded Pure Drinking Water Exclusively For India's Finest Dining"*
 
 A bespoke B2B bottled water e-commerce and consultation platform tailored for restaurants, dhabas, cafes, luxury banquet halls, and hotels. Every bottle is customized with the client restaurant's name (e.g., **"Karan The Dhaba"**) and supplied strictly and exclusively to that establishment.

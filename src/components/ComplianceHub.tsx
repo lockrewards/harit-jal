@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Award, FileText, CheckCircle2, Scale, Droplets } from 'lucide-react';
+import { ShieldCheck, Award, FileText, CheckCircle2, Scale } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 export const ComplianceHub: React.FC = () => {

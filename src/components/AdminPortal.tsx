@@ -5,15 +5,17 @@ import {
   Bot, BookOpen, Sliders, Plus, ShieldCheck, CheckCircle2, Image as ImageIcon, Upload,
   LogOut
 } from 'lucide-react';
-import { CallBooking, VisitorRecord, AdminUser, GoogleSheetsConfig } from '../types';
+import { CallBooking, VisitorRecord, AdminUser, GoogleSheetsConfig, StaffAuditLog } from '../types';
 import { KnowledgeItem, NeerAnalytics, NeerAIConfig, LeadRecord, AutomationConfig } from '../types/neer';
 import { StorageService, EmailLog } from '../services/storage';
 import { KnowledgeBaseService } from '../services/knowledgeBase';
 import { NeerAIService } from '../services/neerAI';
-import { AutomationService } from '../services/automationService';
+import { AutomationService, ServerIntegrationStatus } from '../services/automationService';
 import { soundPlayer } from '../services/sound';
 import { GalleryService, GalleryItem } from '../services/galleryService';
 import { AdminAuthService, AdminSession } from '../services/adminAuth';
+import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
+import { formatRoleDisplay } from '../services/roles';
 import { StaffManagementModal } from './admin/StaffManagementModal';
 import { AdminProfileSettingsModal } from './admin/AdminProfileSettingsModal';
 
@@ -27,12 +29,13 @@ interface AdminPortalProps {
 export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLogout, session }) => {
   const [activeTab, setActiveTab] = useState<'bookings' | 'visitors' | 'users' | 'email_logs' | 'neer_ai' | 'gallery'>('bookings');
   
-  // Data states
-  const [bookings, setBookings] = useState<CallBooking[]>([]);
-  const [visitors, setVisitors] = useState<VisitorRecord[]>([]);
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
-  const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetsConfig>(StorageService.getSheetsConfig());
+  // Data states (initialized lazily; async cloud hydration runs inside useEffect)
+  const [bookings, setBookings] = useState<CallBooking[]>(() => StorageService.getBookings());
+  const [visitors, setVisitors] = useState<VisitorRecord[]>(() => StorageService.getVisitors());
+  const [users, setUsers] = useState<AdminUser[]>(() => StorageService.getUsers());
+  const [staffAuditLogs, setStaffAuditLogs] = useState<StaffAuditLog[]>(() => StorageService.getStaffAuditLogs());
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>(() => StorageService.getEmailLogs());
+  const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetsConfig>(() => StorageService.getSheetsConfig());
 
   // Staff and Admin Profile Modals State
   const [showStaffManagementModal, setShowStaffManagementModal] = useState(false);
@@ -61,11 +64,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
 
   // Neer AI & Knowledge Base state
-  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
-  const [neerAnalytics, setNeerAnalytics] = useState<NeerAnalytics>(NeerAIService.getAnalytics());
-  const [neerConfig, setNeerConfig] = useState<NeerAIConfig>(NeerAIService.getAIConfig());
-  const [leads, setLeads] = useState<LeadRecord[]>([]);
-  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(AutomationService.getConfig());
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => KnowledgeBaseService.getAllKnowledge());
+  const [neerAnalytics, setNeerAnalytics] = useState<NeerAnalytics>(() => NeerAIService.getAnalytics());
+  const [neerConfig, setNeerConfig] = useState<NeerAIConfig>(() => NeerAIService.getAIConfig());
+  const [leads, setLeads] = useState<LeadRecord[]>(() => AutomationService.getAllLeads());
+  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(() => AutomationService.getConfig());
+  const [integrationStatus, setIntegrationStatus] = useState<ServerIntegrationStatus | null>(null);
   const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState('all');
   const [knowledgeSearchTerm, setKnowledgeSearchTerm] = useState('');
   const [showAddKnowledgeModal, setShowAddKnowledgeModal] = useState(false);
@@ -79,65 +83,249 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  // Add User Modal state
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<AdminUser['role']>('Sales Manager');
-
   // Sync notification toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const liveStoredSession = AdminAuthService.getCurrentSession();
+  const effectiveSession = liveStoredSession || session || null;
+
+  const hasWorkspacePermission = (perm: string): boolean => {
+    if (liveStoredSession) {
+      return AdminAuthService.hasPermission(perm);
+    }
+    if (!effectiveSession) return false;
+    if (effectiveSession.isRootSuperAdmin === true) return true;
+    const perms = Array.isArray(effectiveSession.permissions) ? effectiveSession.permissions : [];
+    return perms.includes('all') || perms.includes(perm);
+  };
+
+  const canManageStaff =
+    effectiveSession?.isRootSuperAdmin === true ||
+    (Array.isArray(effectiveSession?.permissions) && effectiveSession.permissions.includes('staff'));
+  const canViewBookings = hasWorkspacePermission('leads') || hasWorkspacePermission('orders');
+  const canViewVisitors = hasWorkspacePermission('analytics');
+  const canViewEmailLogs = hasWorkspacePermission('audit_logs');
+  const canManageNeerAi =
+    hasWorkspacePermission('leads') ||
+    hasWorkspacePermission('pricing') ||
+    hasWorkspacePermission('analytics');
+  const canManageGallery = hasWorkspacePermission('inventory') || hasWorkspacePermission('pricing');
+  const hasAnyWorkspaceTab =
+    canViewBookings ||
+    canViewVisitors ||
+    canManageStaff ||
+    canViewEmailLogs ||
+    canManageNeerAi ||
+    canManageGallery;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const readLocalSnapshot = () => ({
+    localBookings: StorageService.getBookings(),
+    localVisitors: StorageService.getVisitors(),
+    localUsers: StorageService.getUsers(),
+    localAuditLogs: StorageService.getStaffAuditLogs(),
+    localEmailLogs: StorageService.getEmailLogs(),
+    localSheetsConfig: StorageService.getSheetsConfig(),
+    localKnowledge: KnowledgeBaseService.getAllKnowledge(),
+    localAnalytics: NeerAIService.getAnalytics(),
+    localNeerConfig: NeerAIService.getAIConfig(),
+    localLeads: AutomationService.getAllLeads(),
+    localAutomationConfig: AutomationService.getConfig(),
+    localGallery: GalleryService.getAllItems(),
+  });
+
+  const syncPortalData = async (isCancelled?: () => boolean) => {
+    await Promise.resolve();
+    if (isCancelled?.()) return;
+
+    const snap = readLocalSnapshot();
+    setBookings(snap.localBookings);
+    setVisitors(snap.localVisitors);
+    setUsers(snap.localUsers);
+    setStaffAuditLogs(snap.localAuditLogs);
+    setEmailLogs(snap.localEmailLogs);
+    setSheetsConfig(snap.localSheetsConfig);
+    setKnowledgeItems(snap.localKnowledge);
+    setNeerAnalytics(snap.localAnalytics);
+    setNeerConfig(snap.localNeerConfig);
+    setLeads(snap.localLeads);
+    setAutomationConfig(snap.localAutomationConfig);
+    setGalleryItems(snap.localGallery);
+
+    if (isSupabaseConfigured() && AdminAuthService.isAuthenticated()) {
+      const [cloudBookings, cloudUsers, cloudAuditLogs, cloudEmailLogs, srvIntegrations] = await Promise.all([
+        canViewBookings ? SupabaseService.fetchConsultationsForStaff() : Promise.resolve(null),
+        canManageStaff || canViewBookings ? AdminAuthService.syncStaffRosterFromCloud() : Promise.resolve(null),
+        canManageStaff || canViewEmailLogs ? SupabaseService.fetchStaffAuditLogs() : Promise.resolve(null),
+        canViewEmailLogs ? SupabaseService.fetchEmailLogs() : Promise.resolve(null),
+        AutomationService.fetchServerIntegrationStatus(),
+      ]);
+
+      if (isCancelled?.()) return;
+
+      if (srvIntegrations) {
+        setIntegrationStatus(srvIntegrations);
+      }
+
+      if (cloudBookings) {
+        StorageService.setBookings(cloudBookings);
+        setBookings(cloudBookings);
+      }
+      if (cloudUsers) {
+        setUsers(cloudUsers);
+      }
+      if (cloudAuditLogs) {
+        StorageService.setStaffAuditLogs(cloudAuditLogs);
+        setStaffAuditLogs(cloudAuditLogs);
+      }
+      if (cloudEmailLogs) {
+        setEmailLogs(cloudEmailLogs);
+      }
+    }
+  };
+
   const refreshData = () => {
-    setBookings(StorageService.getBookings());
-    setVisitors(StorageService.getVisitors());
-    setUsers(StorageService.getUsers());
-    setEmailLogs(StorageService.getEmailLogs());
-    setSheetsConfig(StorageService.getSheetsConfig());
-    setKnowledgeItems(KnowledgeBaseService.getAllKnowledge());
-    setNeerAnalytics(NeerAIService.getAnalytics());
-    setNeerConfig(NeerAIService.getAIConfig());
-    setLeads(AutomationService.getAllLeads());
-    setAutomationConfig(AutomationService.getConfig());
-    setGalleryItems(GalleryService.getAllItems());
+    void syncPortalData();
   };
 
   useEffect(() => {
+    let cancelled = false;
     if (isOpen) {
-      refreshData();
+      const hydrateOnOpen = async () => {
+        await Promise.resolve();
+        if (cancelled) return;
+
+        const snap = readLocalSnapshot();
+        setBookings(snap.localBookings);
+        setVisitors(snap.localVisitors);
+        setUsers(snap.localUsers);
+        setStaffAuditLogs(snap.localAuditLogs);
+        setEmailLogs(snap.localEmailLogs);
+        setSheetsConfig(snap.localSheetsConfig);
+        setKnowledgeItems(snap.localKnowledge);
+        setNeerAnalytics(snap.localAnalytics);
+        setNeerConfig(snap.localNeerConfig);
+        setLeads(snap.localLeads);
+        setAutomationConfig(snap.localAutomationConfig);
+        setGalleryItems(snap.localGallery);
+
+        if (isSupabaseConfigured() && AdminAuthService.isAuthenticated()) {
+          const [cloudBookings, cloudUsers, cloudAuditLogs, cloudEmailLogs, srvIntegrations] = await Promise.all([
+            canViewBookings ? SupabaseService.fetchConsultationsForStaff() : Promise.resolve(null),
+            canManageStaff || canViewBookings ? AdminAuthService.syncStaffRosterFromCloud() : Promise.resolve(null),
+            canManageStaff || canViewEmailLogs ? SupabaseService.fetchStaffAuditLogs() : Promise.resolve(null),
+            canViewEmailLogs ? SupabaseService.fetchEmailLogs() : Promise.resolve(null),
+            AutomationService.fetchServerIntegrationStatus(),
+          ]);
+
+          if (cancelled) return;
+
+          if (srvIntegrations) {
+            setIntegrationStatus(srvIntegrations);
+          }
+
+          if (cloudBookings) {
+            StorageService.setBookings(cloudBookings);
+            setBookings(cloudBookings);
+          }
+          if (cloudUsers) {
+            setUsers(cloudUsers);
+          }
+          if (cloudAuditLogs) {
+            StorageService.setStaffAuditLogs(cloudAuditLogs);
+            setStaffAuditLogs(cloudAuditLogs);
+          }
+          if (cloudEmailLogs) {
+            setEmailLogs(cloudEmailLogs);
+          }
+        }
+      };
+
+      void hydrateOnOpen();
     }
     const unsubscribeGallery = GalleryService.subscribe(() => {
-      setGalleryItems(GalleryService.getAllItems());
+      if (!cancelled) {
+        setGalleryItems(GalleryService.getAllItems());
+      }
     });
     return () => {
+      cancelled = true;
       unsubscribeGallery();
     };
-  }, [isOpen]);
+  }, [isOpen, canViewBookings, canManageStaff, canViewEmailLogs]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    const ensurePermittedTab = async () => {
+      const allowedTabs: Array<'bookings' | 'visitors' | 'users' | 'email_logs' | 'neer_ai' | 'gallery'> = [];
+      if (canViewBookings) allowedTabs.push('bookings');
+      if (canViewVisitors) allowedTabs.push('visitors');
+      if (canManageStaff) allowedTabs.push('users');
+      if (canViewEmailLogs) allowedTabs.push('email_logs');
+      if (canManageNeerAi) allowedTabs.push('neer_ai');
+      if (canManageGallery) allowedTabs.push('gallery');
+
+      if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
+        await Promise.resolve();
+        if (!cancelled) {
+          setActiveTab(allowedTabs[0]);
+        }
+      }
+    };
+    void ensurePermittedTab();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, activeTab, canViewBookings, canViewVisitors, canManageStaff, canViewEmailLogs, canManageNeerAi, canManageGallery]);
 
   if (!isOpen) return null;
 
+  const denyUnauthorizedAction = () => {
+    soundPlayer.playBubblePop();
+    showToast('Access denied: Missing required workspace permission.');
+  };
+
   const handleUpdateStatus = (id: string, newStatus: CallBooking['status']) => {
+    if (!canViewBookings) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const updated = StorageService.updateBookingStatus(id, newStatus);
     setBookings(updated);
+    if (isSupabaseConfigured()) {
+      void SupabaseService.updateConsultationStatusInCloud(id, newStatus);
+    }
     showToast(`Status updated to "${newStatus}" for inquiry ${id}`);
   };
 
   const handleReassignUser = (id: string, assignedTo: string) => {
+    if (!canViewBookings) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const booking = bookings.find(b => b.id === id);
     if (!booking) return;
     const updated = StorageService.updateBookingStatus(id, booking.status, assignedTo);
     setBookings(updated);
+    if (isSupabaseConfigured()) {
+      const matchedStaff = users.find((u) => u.name === assignedTo);
+      void SupabaseService.updateConsultationStatusInCloud(id, booking.status, matchedStaff?.id);
+    }
     showToast(`Reassigned inquiry ${id} to ${assignedTo}`);
   };
 
   const handleExportCSV = () => {
+    if (!canViewBookings && !canViewEmailLogs) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playSuccessChime();
     const csvContent = StorageService.exportToCSV();
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -151,44 +339,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
     showToast('Exported CSV file for Google Sheets integration.');
   };
 
-  const handleSaveSheetsWebhook = (webhookUrl: string) => {
+  const handleToggleSheetsAutoSync = (enabled: boolean) => {
+    if (!canViewEmailLogs && !canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const updated = {
       ...sheetsConfig,
-      webhookUrl,
-      autoSync: !!webhookUrl.trim(),
+      autoSync: enabled,
     };
     StorageService.saveSheetsConfig(updated);
     setSheetsConfig(updated);
-    showToast('Google Sheets Webhook configuration saved.');
-  };
-
-  const handleCreateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) return;
-    soundPlayer.playSuccessChime();
-    StorageService.addUser({
-      name: newUserName.trim(),
-      email: newUserEmail.trim(),
-      role: newUserRole,
-      status: 'Active',
-    });
-    setUsers(StorageService.getUsers());
-    setNewUserName('');
-    setNewUserEmail('');
-    setShowAddUserModal(false);
-    showToast(`Added staff user: ${newUserName} (${newUserRole})`);
-  };
-
-  const handleDeleteUser = (id: string) => {
-    soundPlayer.playBubblePop();
-    const updated = StorageService.deleteUser(id);
-    setUsers(updated);
-    showToast('Staff user removed.');
+    showToast(`Google Sheets server auto-sync ${enabled ? 'enabled' : 'disabled'}.`);
   };
 
   const handleAddKnowledge = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     if (!newKbTitle.trim() || !newKbContent.trim()) return;
 
     soundPlayer.playSuccessChime();
@@ -211,6 +382,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleDeleteKnowledge = (id: string) => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playBubblePop();
     KnowledgeBaseService.deleteKnowledgeItem(id);
     setKnowledgeItems(KnowledgeBaseService.getAllKnowledge());
@@ -218,23 +393,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleResetKnowledge = () => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const defaults = KnowledgeBaseService.resetToDefault();
     setKnowledgeItems(defaults);
     showToast('Reset Knowledge Base to verified defaults.');
   };
 
-  const handleSaveAIConfig = (provider: 'local' | 'gemini', apiKey?: string) => {
+  const handleSaveAIConfig = (provider: 'local' | 'gemini') => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     NeerAIService.saveAIConfig({
       provider,
-      geminiApiKey: apiKey !== undefined ? apiKey : neerConfig.geminiApiKey,
     });
     setNeerConfig(NeerAIService.getAIConfig());
-    showToast(`Neer AI config updated to ${provider === 'gemini' ? 'Gemini Cloud LLM' : 'Local Intelligent RAG Engine'}.`);
+    showToast(`Neer AI config updated to ${provider === 'gemini' ? 'Gemini Cloud LLM (Server Edge Proxy)' : 'Local Intelligent RAG Engine'}.`);
   };
 
   const handleExportLeadsCSV = () => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playSuccessChime();
     const csvContent = AutomationService.exportLeadsToCSV();
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -249,6 +435,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleRetryPendingSyncs = () => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const count = AutomationService.retryPendingSyncs();
     setLeads(AutomationService.getAllLeads());
@@ -257,6 +447,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
   const handleSaveAutomationSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playSuccessChime();
     AutomationService.saveConfig(automationConfig);
     showToast('Automation & Google Sheets configuration saved.');
@@ -264,6 +458,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
   // Gallery Catalog Management Handlers
   const handleOpenAddGalleryModal = () => {
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playBubblePop();
     setEditingGalleryItem(null);
     setFormTitle('');
@@ -282,6 +480,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleOpenEditGalleryModal = (item: GalleryItem) => {
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playBubblePop();
     setEditingGalleryItem(item);
     setFormTitle(item.title);
@@ -301,6 +503,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
   const handleSaveGalleryItem = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     if (!formTitle.trim() || !formImage.trim()) {
       alert('Please provide at least a bottle title and image.');
       return;
@@ -357,6 +563,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleToggleGalleryVisibility = (id: string) => {
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     soundPlayer.playWaterDrop();
     const isNowVisible = GalleryService.toggleVisibility(id);
     setGalleryItems(GalleryService.getAllItems());
@@ -364,6 +574,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleDeleteGalleryItem = (id: string) => {
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     if (window.confirm('Are you sure you want to permanently remove this bottle from the gallery?')) {
       soundPlayer.playBubblePop();
       GalleryService.deleteItem(id);
@@ -373,6 +587,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   };
 
   const handleResetGalleryDefaults = () => {
+    if (!canManageGallery) {
+      denyUnauthorizedAction();
+      return;
+    }
     if (window.confirm('Reset all gallery products to factory default catalog? Any custom added bottles will be restored to defaults.')) {
       soundPlayer.playWaterDrop();
       GalleryService.resetToDefault();
@@ -471,38 +689,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Active Staff Member Indicator */}
-            {(() => {
-              const staff = session || AdminAuthService.getCurrentSession();
-              if (!staff) return null;
-              return (
-                <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#102B46]/5 border border-[#102B46]/10 text-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-semibold text-[#102B46]">{staff.name}</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#C99B43]/20 text-[#8C6418]">
-                    {staff.role}
-                  </span>
-                </div>
-              );
-            })()}
+            {effectiveSession && (
+              <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#102B46]/5 border border-[#102B46]/10 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-semibold text-[#102B46]">{effectiveSession.name}</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#C99B43]/20 text-[#8C6418]">
+                  {formatRoleDisplay(effectiveSession.role)}
+                </span>
+              </div>
+            )}
 
-            {/* Super Admin Settings Button (Profile, Contact & Google Auth) */}
-            {(() => {
-              const staff = session || AdminAuthService.getCurrentSession();
-              if (staff?.role !== 'Super Admin') return null;
-              return (
-                <button
-                  onClick={() => {
-                    soundPlayer.playWaterDrop();
-                    setShowAdminProfileModal(true);
-                  }}
-                  className="px-3 py-1 rounded-full bg-[#C99B43]/20 hover:bg-[#C99B43]/30 text-[#8C6418] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#C99B43]/40"
-                  title="Super Admin Profile, Email/Phone & Google Auth"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#8C6418]" />
-                  <span>Admin Settings</span>
-                </button>
-              );
-            })()}
+            {/* Super Admin Settings Button (Profile, Contact & Native MFA Status) */}
+            {canManageStaff && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setShowAdminProfileModal(true);
+                }}
+                className="px-3 py-1 rounded-full bg-[#C99B43]/20 hover:bg-[#C99B43]/30 text-[#8C6418] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#C99B43]/40"
+                title="Super Admin Profile & Security Status"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#8C6418]" />
+                <span>Admin Settings</span>
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -550,111 +760,137 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
         {/* Navigation Tabs & Metrics Banner */}
         <div className="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-[#C99B43]/20">
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('bookings');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'bookings'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <PhoneCall className="w-3.5 h-3.5" />
-              <span>Call Bookings ({bookings.length})</span>
-            </button>
+            {canViewBookings && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('bookings');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'bookings'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                <span>Call Bookings ({bookings.length})</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('visitors');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'visitors'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5 text-[#455C22]" />
-              <span>Visitor Analytics ({regularVisitors.length} regulars)</span>
-            </button>
+            {canViewVisitors && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('visitors');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'visitors'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5 text-[#455C22]" />
+                <span>Visitor Analytics ({regularVisitors.length} regulars)</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('users');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'users'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-[#C99B43]" />
-              <span>Staff & Access ({users.length})</span>
-            </button>
+            {canManageStaff && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('users');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'users'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-[#C99B43]" />
+                <span>Staff &amp; Access ({users.length})</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('email_logs');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'email_logs'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5 text-[#C99B43]" />
-              <span>Email & Sheet Logs</span>
-            </button>
+            {canViewEmailLogs && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('email_logs');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'email_logs'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 text-[#C99B43]" />
+                <span>Email & Sheet Logs</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('neer_ai');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'neer_ai'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <Bot className="w-3.5 h-3.5 text-[#52652D]" />
-              <span>Neer AI 2.0 & Knowledge</span>
-            </button>
+            {canManageNeerAi && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('neer_ai');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'neer_ai'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <Bot className="w-3.5 h-3.5 text-[#52652D]" />
+                <span>Neer AI 2.0 & Knowledge</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('gallery');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'gallery'
-                  ? 'btn-gold-luxury shadow-sm'
-                  : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
-              }`}
-            >
-              <ImageIcon className="w-3.5 h-3.5 text-[#C99B43]" />
-              <span>Bottle Gallery Manager ({galleryItems.length})</span>
-            </button>
+            {canManageGallery && (
+              <button
+                onClick={() => {
+                  soundPlayer.playWaterDrop();
+                  setActiveTab('gallery');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'gallery'
+                    ? 'btn-gold-luxury shadow-sm'
+                    : 'bg-[#F8F3E9] text-[#102B46] hover:bg-[#102B46]/10'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-[#C99B43]" />
+                <span>Bottle Gallery Manager ({galleryItems.length})</span>
+              </button>
+            )}
           </div>
 
-          <button
-            onClick={handleExportCSV}
-            className="px-3.5 py-1.5 rounded-full bg-[#102B46] hover:bg-[#183C60] text-[#FFF9EF] font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#C99B43]" />
-            <span>Export to Google Sheets CSV</span>
-          </button>
+          {(canViewBookings || canViewEmailLogs) && (
+            <button
+              onClick={handleExportCSV}
+              className="px-3.5 py-1.5 rounded-full bg-[#102B46] hover:bg-[#183C60] text-[#FFF9EF] font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-[#C99B43]" />
+              <span>Export to Google Sheets CSV</span>
+            </button>
+          )}
         </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto py-4">
 
+          {!hasAnyWorkspaceTab && (
+            <div className="p-8 rounded-2xl bg-white border border-[#C99B43]/30 text-center space-y-2 shadow-sm">
+              <ShieldCheck className="w-10 h-10 text-[#C99B43] mx-auto" />
+              <h3 className="text-base font-bold font-playfair text-[#102B46]">
+                No Workspace Permissions Assigned
+              </h3>
+              <p className="text-xs text-[#77766F] max-w-md mx-auto">
+                Your staff account is verified at AAL2, but no workspace modules have been assigned yet. Please contact the Super Admin to grant access permissions.
+              </p>
+            </div>
+          )}
+
           {/* TAB 1: CALL BOOKINGS CRM */}
-          {activeTab === 'bookings' && (
+          {activeTab === 'bookings' && canViewBookings && (
             <div className="space-y-4">
               
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -710,9 +946,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                         filteredBookings.map((b) => (
                           <tr key={b.id} className="hover:bg-[#FFF9EF] transition">
                             <td className="py-2.5 px-3">
-                              <div className="font-bold text-[#102B46] flex items-center gap-1.5">
+                              <div className="font-bold text-[#102B46] flex items-center gap-1.5 flex-wrap">
                                 <Building className="w-3.5 h-3.5 text-[#C99B43]" />
                                 <span>{b.restaurantName}</span>
+                                {b.source === 'mascot' ? (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#102B46]/10 text-[#102B46]">
+                                    🤖 Mascot (Neer)
+                                  </span>
+                                ) : b.source === 'contact_page' ? (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#52652D]/15 text-[#52652D]">
+                                    🌐 Contact Page
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#C99B43]/15 text-[#8A6A23]">
+                                    🌐 Website Form
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-[#77766F]">
                                 {b.ownerName} • <span className="text-[#102B46] font-semibold">{b.city}</span>
@@ -755,9 +1004,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    if (!canViewBookings) {
+                                      denyUnauthorizedAction();
+                                      return;
+                                    }
                                     soundPlayer.playSuccessChime();
-                                    const updated = StorageService.approveBooking(b.id, session?.name || 'Admin');
+                                    const updated = StorageService.approveBooking(b.id, effectiveSession?.name || 'Admin');
                                     setBookings(updated);
+                                    if (isSupabaseConfigured()) {
+                                      void SupabaseService.updateConsultationStatusInCloud(b.id, 'Call Scheduled');
+                                    }
                                     showToast(`Call approved for ${b.restaurantName} at ${b.preferredDateTime}`);
                                   }}
                                   className="mt-1.5 px-2 py-0.5 rounded-md bg-[#52652D] hover:bg-[#3F4F23] text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-xs transition"
@@ -784,7 +1040,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                               >
                                 {users.map((u) => (
                                   <option key={u.id} value={u.name}>
-                                    {u.name} ({u.role.split(' ')[0]})
+                                    {u.name} ({formatRoleDisplay(u.role).split(' ')[0]})
                                   </option>
                                 ))}
                               </select>
@@ -800,7 +1056,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
           )}
 
           {/* TAB 2: VISITOR ANALYTICS & REGULAR USERS */}
-          {activeTab === 'visitors' && (
+          {activeTab === 'visitors' && canViewVisitors && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-4 rounded-2xl bg-white border border-[#C99B43]/25 shadow-sm">
@@ -854,13 +1110,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
             </div>
           )}
 
-          {/* TAB 3: STAFF & ROLE MANAGEMENT */}
-          {activeTab === 'users' && (
-            <div className="space-y-4">
+          {/* TAB 3: STAFF & ROLE MANAGEMENT (Super Admin Only) */}
+          {activeTab === 'users' && canManageStaff && (
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-[#102B46]">Authorized Team Members</h3>
-                  <p className="text-xs text-[#77766F]">Assign leads and oversee client fulfillment</p>
+                  <p className="text-xs text-[#77766F]">
+                    Super Admin governance: provision staff, assign workspace permissions, block/unblock, or delete accounts.
+                  </p>
                 </div>
                 <button
                   onClick={() => {
@@ -870,7 +1128,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                   className="px-4 py-2 rounded-full bg-[#102B46] text-[#FFF9EF] text-xs font-bold hover:bg-[#183C60] transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-[#C99B43]" />
-                  <span>Manage Team & Add Staff</span>
+                  <span>Manage Team &amp; Add Staff</span>
                 </button>
               </div>
 
@@ -878,66 +1136,120 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                 {users.map((u) => (
                   <div key={u.id} className="p-4 rounded-2xl bg-white border border-[#C99B43]/25 flex flex-col justify-between shadow-sm">
                     <div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-sm text-[#102B46]">{u.name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF9EF] text-[#455C22] font-bold border border-[#455C22]/30">
-                          {u.role}
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF9EF] text-[#455C22] font-bold border border-[#455C22]/30 shrink-0">
+                          {formatRoleDisplay(u.role)}
                         </span>
                       </div>
                       <span className="text-xs text-[#77766F] block mt-1">{u.email}</span>
-                      <span className="text-[10px] text-[#77766F] block mt-0.5">Assigned: {u.inquiriesAssigned} leads</span>
+                      <span className="text-[10px] text-[#77766F] block mt-0.5">
+                        Assigned: {u.inquiriesAssigned} leads
+                      </span>
                     </div>
 
                     <div className="pt-3 mt-3 border-t border-[#C99B43]/15 flex items-center justify-between">
-                      <span className="text-[11px] text-[#455C22] font-semibold">Active Access</span>
-                      {users.length > 1 && (
-                        <button
-                          onClick={() => handleDeleteUser(u.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                          title="Remove user"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      <span
+                        className={`text-[11px] font-semibold ${
+                          u.status === 'Blocked' ? 'text-red-600' : 'text-[#455C22]'
+                        }`}
+                      >
+                        {u.status === 'Blocked' ? 'Blocked' : 'Active Access'}
+                      </span>
+                      {u.isRootSuperAdmin && (
+                        <span className="text-[10px] font-bold text-[#8A631E] bg-[#C99B42]/15 px-2 py-0.5 rounded-full">
+                          Root Protected
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Staff Security & Governance Audit Trail */}
+              <div className="rounded-2xl border border-[#C99B43]/25 overflow-hidden bg-white shadow-sm">
+                <div className="p-3.5 bg-[#F8F3E9] border-b border-[#C99B43]/20 flex items-center justify-between">
+                  <span className="font-bold text-xs text-[#102B46] flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-[#C99B43]" />
+                    <span>Staff Management &amp; Security Audit Trail ({staffAuditLogs.length})</span>
+                  </span>
+                </div>
+                <div className="divide-y divide-[#C99B43]/15 max-h-64 overflow-y-auto">
+                  {staffAuditLogs.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[#77766F]">
+                      No staff management audit events recorded yet.
+                    </div>
+                  ) : (
+                    staffAuditLogs.map((log) => (
+                      <div key={log.id} className="p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full bg-[#102B46]/10 text-[#102B46] font-mono text-[10px] font-bold">
+                              {log.action}
+                            </span>
+                            <span className="font-semibold text-[#102B46]">{log.targetUserEmail}</span>
+                          </div>
+                          <p className="text-[11px] text-[#77766F] mt-0.5">{log.details}</p>
+                        </div>
+                        <div className="text-left sm:text-right text-[10.5px] text-[#77766F] shrink-0">
+                          <div>By: <strong className="text-[#102B46]">{log.performedBy}</strong></div>
+                          <div className="font-mono">{log.timestamp.replace('T', ' ').substring(0, 16)}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
           {/* TAB 4: EMAIL & SHEETS LOGS */}
-          {activeTab === 'email_logs' && (
+          {activeTab === 'email_logs' && canViewEmailLogs && (
             <div className="space-y-4">
               <div className="p-5 rounded-2xl bg-white border border-[#C99B43]/25 space-y-3 shadow-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="w-5 h-5 text-[#455C22]" />
-                    <h3 className="text-sm font-bold text-[#102B46]">Google Sheets Webhook Sync</h3>
+                    <h3 className="text-sm font-bold text-[#102B46]">Server-Side Google Sheets CRM &amp; Email Dispatch</h3>
                   </div>
-                  <span className="text-xs text-[#455C22] font-bold">
-                    {sheetsConfig.autoSync ? '✓ Automated Webhook Active' : 'Offline / Export Only'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      integrationStatus?.sheetsWebhookConfigured
+                        ? 'bg-[#455C22]/10 text-[#455C22] border-[#455C22]/30'
+                        : 'bg-amber-50 text-amber-800 border-amber-300'
+                    }`}>
+                      {integrationStatus === null
+                        ? 'Edge Status: Local / Unchecked'
+                        : integrationStatus.sheetsWebhookConfigured
+                          ? 'Webhook Secret: Configured Server-Side'
+                          : 'Webhook Secret: Not Set on Edge Server'}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                      integrationStatus?.resendConfigured
+                        ? 'bg-[#455C22]/10 text-[#455C22] border-[#455C22]/30'
+                        : 'bg-amber-50 text-amber-800 border-amber-300'
+                    }`}>
+                      {integrationStatus === null
+                        ? 'Resend API: Local Mode'
+                        : integrationStatus.resendConfigured
+                          ? 'Resend Key: Active on Edge Server'
+                          : 'Resend Key: Missing Secret'}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-xs text-[#77766F]">
-                  Every booking immediately posts new rows to your connected Google Sheet or exports via CSV.
+                  All Google Apps Script webhook URLs, webhook signing secrets, and Resend API keys are stored exclusively in Supabase Edge Function secrets (<code className="font-mono text-[#102B46]">crm-sync</code> / <code className="font-mono text-[#102B46]">send-email-otp</code>) — never in browser storage or bundles.
                 </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    defaultValue={sheetsConfig.webhookUrl}
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    id="sheets-webhook-input"
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-[#F8F3E9] border border-[#C99B43]/30 text-xs font-mono text-[#102B46] focus:outline-none"
-                  />
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <span className="text-xs text-[#455C22] font-bold">
+                    {sheetsConfig.autoSync ? '✓ Client Auto-Sync Requests Enabled' : 'Offline / Manual CSV Export Only'}
+                  </span>
                   <button
-                    onClick={() => {
-                      const input = document.getElementById('sheets-webhook-input') as HTMLInputElement;
-                      if (input) handleSaveSheetsWebhook(input.value);
-                    }}
+                    type="button"
+                    onClick={() => handleToggleSheetsAutoSync(!sheetsConfig.autoSync)}
                     className="px-4 py-2 rounded-full bg-[#102B46] text-[#FFF9EF] text-xs font-bold hover:bg-[#183C60] transition cursor-pointer"
                   >
-                    Save Webhook
+                    {sheetsConfig.autoSync ? 'Pause Auto-Sync' : 'Enable Auto-Sync'}
                   </button>
                 </div>
               </div>
@@ -945,7 +1257,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
               {/* Email dispatch logs */}
               <div className="rounded-2xl border border-[#C99B43]/25 overflow-hidden bg-white shadow-sm">
                 <div className="p-3 bg-[#F8F3E9] border-b border-[#C99B43]/20 font-bold text-xs text-[#102B46]">
-                  Simulated Notification Dispatch Trail ({emailLogs.length})
+                  Cloud &amp; Local Notification Dispatch Trail ({emailLogs.length})
                 </div>
                 <div className="divide-y divide-[#C99B43]/15 max-h-60 overflow-y-auto">
                   {emailLogs.map((log) => (
@@ -954,9 +1266,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                         <div className="font-semibold text-[#102B46]">{log.subject}</div>
                         <div className="text-[11px] text-[#77766F]">To: {log.recipient} • {log.sentAt}</div>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full bg-[#455C22]/10 text-[#455C22] text-[10px] font-bold self-start sm:self-auto">
-                        Delivered
-                      </span>
+                      {(() => {
+                        const statusLabel = log.status || 'Dispatched';
+                        const lower = statusLabel.toLowerCase();
+                        const badgeClass =
+                          lower.includes('fail') || lower.includes('error') || lower.includes('reject')
+                            ? 'bg-red-50 text-red-700 border border-red-200'
+                            : lower.includes('simulat') || lower.includes('pend') || lower.includes('queue') || lower.includes('block')
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-[#455C22]/10 text-[#455C22]';
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold self-start sm:self-auto ${badgeClass}`}>
+                            {statusLabel}
+                          </span>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -965,7 +1289,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
           )}
 
           {/* TAB 5: NEER AI 2.0 & KNOWLEDGE MANAGEMENT */}
-          {activeTab === 'neer_ai' && (
+          {activeTab === 'neer_ai' && canManageNeerAi && (
             <div className="space-y-6">
               
               {/* Analytics Summary */}
@@ -1223,20 +1547,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                     </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-[#102B46] mb-1">
-                      GOOGLE_SHEETS_WEBHOOK_URL (Google Apps Script / Webhook)
-                    </label>
-                    <input
-                      type="url"
-                      value={automationConfig.googleSheetsWebhookUrl}
-                      onChange={(e) => setAutomationConfig({ ...automationConfig, googleSheetsWebhookUrl: e.target.value })}
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      className="w-full px-3 py-2 rounded-xl bg-[#F8F3E9] border border-[#C99B43]/30 text-xs font-mono text-[#102B46] focus:outline-none"
-                    />
-                    <span className="text-[10px] text-[#77766F] mt-0.5 block">
-                      Live webhook for instant row upserts. Failed syncs are queued automatically for retry.
-                    </span>
+                  <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B43]/30 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-[#102B46]">
+                        Google Sheets Webhook &amp; Signing Secret (Edge Managed)
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        integrationStatus?.sheetsWebhookConfigured
+                          ? 'bg-[#52652D]/15 text-[#52652D]'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {integrationStatus?.sheetsWebhookConfigured ? 'CONFIGURED' : 'SERVER SECRET'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[#77766F] leading-relaxed">
+                      Configured exclusively via Supabase Edge Function secrets for <code className="font-mono text-[#102B46]">crm-sync</code>. Never entered or persisted in the browser.
+                    </p>
                   </div>
 
                   <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#C99B43]/15">
@@ -1312,27 +1638,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#F8F3E9] border border-[#C99B43]/25 space-y-2">
-                    <div className="font-bold text-[#102B46]">Gemini API Key (Optional Cloud LLM)</div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="password"
-                        placeholder="AIzaSy... (Leave empty to use built-in local engine)"
-                        defaultValue={neerConfig.geminiApiKey || ''}
-                        id="gemini-api-key-input"
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-[#C99B43]/30 text-xs font-mono text-[#102B46] focus:outline-none"
-                      />
-                      <button
-                        onClick={() => {
-                          const input = document.getElementById('gemini-api-key-input') as HTMLInputElement;
-                          if (input) handleSaveAIConfig(neerConfig.provider, input.value.trim());
-                        }}
-                        className="px-3 py-1.5 rounded-full bg-[#102B46] text-[#FFF9EF] text-xs font-bold hover:bg-[#183C60] transition cursor-pointer"
-                      >
-                        Save Key
-                      </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-bold text-[#102B46]">Cloud LLM Edge Proxy Status</div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        integrationStatus?.geminiConfigured
+                          ? 'bg-[#52652D]/15 text-[#52652D]'
+                          : 'bg-[#102B46]/10 text-[#102B46]'
+                      }`}>
+                        {integrationStatus?.geminiConfigured ? 'GEMINI SECRET ACTIVE' : 'SERVER SECRET ONLY'}
+                      </span>
                     </div>
+                    <p className="text-[11px] text-[#77766F] leading-relaxed">
+                      When Gemini Cloud LLM is selected, requests route through the server-side <code className="font-mono text-[#102B46]">crm-sync</code> Edge Function using its protected server secret.
+                    </p>
                     <span className="text-[10px] text-[#77766F] block">
-                      Stored in secure local storage. Never exposed in public client bundles.
+                      Configured exclusively in Supabase Edge Function secrets. No AI keys are ever stored in browser storage or bundles.
                     </span>
                   </div>
                 </div>
@@ -1448,7 +1768,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
           )}
 
           {/* TAB: BOTTLE GALLERY CATALOG MANAGER */}
-          {activeTab === 'gallery' && (
+          {activeTab === 'gallery' && canManageGallery && (
             <div className="space-y-6">
 
               {/* Header Strip with Stats & Actions */}
@@ -1676,71 +1996,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
       </div>
 
-      {/* Add User Modal */}
-      {showAddUserModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleCreateUser} className="w-full max-w-sm rounded-3xl bg-[#FFF9EF] border border-[#C99B43]/40 p-6 space-y-4 shadow-xl text-[#102B46]">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-[#102B46]">Add Staff Member</h3>
-              <button
-                type="button"
-                onClick={() => setShowAddUserModal(false)}
-                className="text-[#77766F] hover:text-[#102B46]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#77766F] mb-1">Full Name</label>
-              <input
-                type="text"
-                required
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                placeholder="Staff Member Name"
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/30 text-xs text-[#102B46] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#77766F] mb-1">Email Address</label>
-              <input
-                type="email"
-                required
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="staff@haritjal.in"
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/30 text-xs text-[#102B46] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#77766F] mb-1">Assigned Role</label>
-              <select
-                value={newUserRole}
-                onChange={(e) => setNewUserRole(e.target.value as AdminUser['role'])}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/30 text-xs text-[#102B46] focus:outline-none"
-              >
-                <option value="Super Admin">Super Admin</option>
-                <option value="Sales Manager">Sales Manager</option>
-                <option value="Operations Lead">Operations Lead</option>
-                <option value="Label Designer">Label Designer</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              className="btn-gold-luxury w-full py-2.5 rounded-full font-bold text-xs shadow-md transition cursor-pointer"
-            >
-              Add Staff Member
-            </button>
-          </form>
-        </div>
-      )}
-
       {/* Add Knowledge Base Modal */}
-      {showAddKnowledgeModal && (
+      {showAddKnowledgeModal && canManageNeerAi && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <form onSubmit={handleAddKnowledge} className="w-full max-w-lg rounded-3xl bg-[#FFF9EF] border border-[#C99B43]/45 p-6 space-y-4 shadow-2xl text-[#102B46] font-manrope">
             <div className="flex items-center justify-between pb-2 border-b border-[#C99B43]/20">
@@ -1832,7 +2089,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
       )}
 
       {/* Add / Edit Bottle Gallery Modal */}
-      {showAddEditGalleryModal && (
+      {showAddEditGalleryModal && canManageGallery && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <form
             onSubmit={handleSaveGalleryItem}
@@ -2085,33 +2342,71 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
         </div>
       )}
 
-      {/* Staff & Access Management Modal */}
-      {showStaffManagementModal && (() => {
-        const currentAdmin = users.find(u => u.email.toLowerCase() === (session?.email || '').toLowerCase()) || users[0];
-        return currentAdmin ? (
+      {/* Staff & Access Management Modal (Super Admin Only - Server Enforced AAL2) */}
+      {showStaffManagementModal && canManageStaff && (() => {
+        if (!effectiveSession) return null;
+        const resolvedCurrentAdmin: AdminUser =
+          users.find(
+            (u) =>
+              u.id === effectiveSession.adminId ||
+              u.email.toLowerCase() === effectiveSession.email.toLowerCase()
+          ) || {
+            id: effectiveSession.adminId,
+            name: effectiveSession.name,
+            email: effectiveSession.email,
+            phone: effectiveSession.phone || '',
+            role: effectiveSession.role,
+            designation: effectiveSession.designation || formatRoleDisplay(effectiveSession.role),
+            permissions: effectiveSession.permissions || [],
+            status: 'Active',
+            inquiriesAssigned: 0,
+            isRootSuperAdmin: effectiveSession.isRootSuperAdmin === true,
+            totpEnabled: effectiveSession.authLevel === 'aal2',
+          };
+
+        return (
           <StaffManagementModal
             isOpen={showStaffManagementModal}
-            currentUser={currentAdmin}
+            currentUser={resolvedCurrentAdmin}
             onClose={() => setShowStaffManagementModal(false)}
             onRefresh={refreshData}
           />
-        ) : null;
+        );
       })()}
 
-      {/* Super Admin Profile & 2FA Settings Modal */}
-      {showAdminProfileModal && (() => {
-        const currentAdmin = users.find(u => u.email.toLowerCase() === (session?.email || '').toLowerCase()) || users[0];
-        return currentAdmin ? (
+      {/* Super Admin Profile & Security Status Modal (Super Admin Only) */}
+      {showAdminProfileModal && canManageStaff && (() => {
+        if (!effectiveSession) return null;
+        const resolvedCurrentAdmin: AdminUser =
+          users.find(
+            (u) =>
+              u.id === effectiveSession.adminId ||
+              u.email.toLowerCase() === effectiveSession.email.toLowerCase()
+          ) || {
+            id: effectiveSession.adminId,
+            name: effectiveSession.name,
+            email: effectiveSession.email,
+            phone: effectiveSession.phone || '',
+            role: effectiveSession.role,
+            designation: effectiveSession.designation || formatRoleDisplay(effectiveSession.role),
+            permissions: effectiveSession.permissions || [],
+            status: 'Active',
+            inquiriesAssigned: 0,
+            isRootSuperAdmin: effectiveSession.isRootSuperAdmin === true,
+            totpEnabled: effectiveSession.authLevel === 'aal2',
+          };
+
+        return (
           <AdminProfileSettingsModal
             isOpen={showAdminProfileModal}
-            user={currentAdmin}
+            user={resolvedCurrentAdmin}
             onClose={() => setShowAdminProfileModal(false)}
             onUpdated={() => {
               refreshData();
               showToast('Super Admin profile updated successfully.');
             }}
           />
-        ) : null;
+        );
       })()}
 
     </div>

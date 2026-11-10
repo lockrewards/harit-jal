@@ -19,7 +19,7 @@ export interface GalleryItem {
   updatedAt?: string;
 }
 
-const STORAGE_KEY = 'harit_jal_gallery_catalog_v1';
+const STORAGE_KEY = 'harit_jal_gallery_catalog_v2';
 
 export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
   {
@@ -27,7 +27,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Spiral Fluted Carafe',
     subtitle: 'Murthal Highway Dining & Premium Dhabas',
     description: 'Signature spiral-fluted tapered carafe in heavy flint glass with polished champagne gold crown cap. Designed for high-volume highway tables and fine dining.',
-    image: '/images/bottles/spiral_wave_studio.jpg',
+    image: '/images/bottles/spiral_wave_studio.png',
     category: 'glass',
     categories: ['glass', 'dhaba', 'finedining'],
     size: '500ml',
@@ -46,7 +46,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Royal Darbar Decanter',
     subtitle: 'Palace Banquets, VIP Lounges & Wedding Feasts',
     description: 'Classic rounded-shoulder heavy glass decanter with ornate golden embossed palace crest. Delivers unmatched five-star majesty to luxury dining tables.',
-    image: '/images/bottles/royal_darbar_studio.jpg',
+    image: '/images/bottles/royal_darbar_studio.png',
     category: 'banquet',
     categories: ['glass', 'banquet', 'finedining'],
     size: '750ml_glass',
@@ -65,7 +65,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Cafe Terra Artisanal Frosted',
     subtitle: 'Specialty Coffee Bars & Modern Urban Bistros',
     description: 'Satin velvet frosted mist glass bottle with botanical gold-leaf motif and scannable QR code linking diners to your seasonal digital menu.',
-    image: '/images/bottles/frosted_mist_studio.jpg',
+    image: '/images/bottles/frosted_mist_studio.png',
     category: 'cafe',
     categories: ['glass', 'cafe'],
     size: '250ml',
@@ -84,7 +84,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Grand Sapphire Slim Cylinder',
     subtitle: 'Executive Suites, Rooftop Bars & Five-Star Hotels',
     description: 'Nordic straight cylinder with royal navy wrap and geometric foil mandala. Engineered for modern contemporary dining and boutique table settings.',
-    image: '/images/bottles/grand_sapphire_studio.jpg',
+    image: '/images/bottles/grand_sapphire_studio.png',
     category: 'finedining',
     categories: ['glass', 'finedining'],
     size: '500ml',
@@ -103,7 +103,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Vintage Heritage Arch',
     subtitle: 'Highway Diners, Resorts & Multi-Cuisine Family Tables',
     description: 'Heavy-base estate cylinder with arch crest and landscape engraving. Durable, elegant, and designed for memorable family gatherings.',
-    image: '/images/bottles/heritage_arch_studio.jpg',
+    image: '/images/bottles/heritage_arch_studio.png',
     category: 'dhaba',
     categories: ['glass', 'dhaba'],
     size: '1000ml',
@@ -122,7 +122,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Diamond-Cut Crystal Silhouette',
     subtitle: 'Gala Receptions, Night Lounges & Luxury Celebrations',
     description: 'Prismatic geometric diamond facets reflecting ambient dining candlelight. Paired with a regal navy-and-gold crest for upscale celebrations.',
-    image: '/images/bottles/diamond_cut_studio.jpg',
+    image: '/images/bottles/diamond_cut_studio.png',
     category: 'banquet',
     categories: ['glass', 'banquet', 'finedining'],
     size: '750ml_glass',
@@ -141,7 +141,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     title: 'Contoured Wave Decanter',
     subtitle: 'Boutique Hotels, Chef Counters & Sommelier Pairings',
     description: 'Sculpted curved wave lines in pure flint glass. Ergonomic pour grip designed for sommelier water pairings and fine dining banquets.',
-    image: '/images/bottles/contoured_spiral_studio.jpg',
+    image: '/images/bottles/contoured_spiral_studio.png',
     category: 'glass',
     categories: ['glass', 'finedining'],
     size: '500ml',
@@ -157,16 +157,16 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
   },
   {
     id: 'classic-dining-table-bottle',
-    title: 'Classic Chilled Dining Glass Bottle',
-    subtitle: 'Casual Dining, Continental Cafes & Pizzerias',
-    description: 'Crystal-clear glass bottle with natural chilled condensation drops, engineered for everyday upscale dining tables.',
+    title: '500ml Classic Dining Glass Bottle',
+    subtitle: 'Boutique Restaurants & Upscale Dining',
+    description: 'Cylindrical crystal-clear glass bottle with chilled condensation beads, designed for upscale restaurant dining tables.',
     image: '/images/products/product-500ml-glass.jpg',
     category: 'finedining',
     categories: ['glass', 'finedining'],
     size: '500ml',
     sizeLabel: '500ml Dine-In Glass',
     material: 'Ultra-Clear Flint Glass',
-    capColor: 'Champagne Gold',
+    capColor: 'Polished Champagne Gold',
     wholesaleRate: 14.0,
     recommendedMRP: 40.0,
     badge: 'Dine-In Classic',
@@ -175,22 +175,98 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     createdAt: new Date().toISOString(),
   },
   {
+    id: 'decanter-750ml-flagship',
+    title: '750ml Grand Reserve Decanter',
+    subtitle: 'Palace Dining & VIP Hospitality',
+    description: 'Opulent fluted decanter crafted for VIP banquet tables, palace feasts, and luxury tableware settings.',
+    image: '/images/products/product-750ml-decanter.jpg',
+    category: 'banquet',
+    categories: ['glass', 'banquet', 'finedining'],
+    size: '750ml_glass',
+    sizeLabel: '750ml Heavy Decanter',
+    material: 'Fluted Flint Glass',
+    capColor: 'Royal Gold Stopper Cap',
+    wholesaleRate: 24.0,
+    recommendedMRP: 60.0,
+    badge: 'Palace Decanter',
+    isVisible: true,
+    order: 9,
+    createdAt: new Date().toISOString(),
+  },
+  {
     id: 'artisan-cafe-rpet',
-    title: 'Artisanal Cafe Grab-and-Go',
-    subtitle: 'Takeaway Counters, Garden Patios & Coffee Bars',
-    description: 'Recyclable food-grade pocket bottle with Scandinavian typography and dynamic QR linking to menus or loyalty programs.',
+    title: '250ml Artisanal Cafe Pocket Bottle',
+    subtitle: 'Specialty Cafes & Modern QSR',
+    description: 'Compact bottle with minimalist Scandinavian label and dynamic QR code linking guests to your digital seasonal menu.',
     image: '/images/products/product-250ml-cafe.jpg',
-    category: 'pet',
+    category: 'cafe',
     categories: ['pet', 'cafe'],
     size: '250ml',
     sizeLabel: '250ml Pocket rPET',
     material: 'Food-Grade Recyclable rPET',
-    capColor: 'Midnight Navy',
-    wholesaleRate: 7.5,
+    capColor: 'Midnight Navy Cap',
+    wholesaleRate: 6.5,
     recommendedMRP: 20.0,
     badge: 'Eco Pocket',
     isVisible: true,
-    order: 9,
+    order: 10,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'dhaba-1000ml-pet-flagship',
+    title: '1000ml Heritage Dhaba Family Bottle',
+    subtitle: 'Highway Dining & Family Feast Tables',
+    description: 'Robust 1-litre family format with amber-gold heritage branding, built for high-turnover dhaba and resort tables.',
+    image: '/images/products/product-1000ml-dhaba.jpg',
+    category: 'dhaba',
+    categories: ['pet', 'dhaba'],
+    size: '1000ml',
+    sizeLabel: '1000ml Family Format',
+    material: 'Food-Grade Virgin & Recyclable PET',
+    capColor: 'Forest Olive Green Cap',
+    wholesaleRate: 11.0,
+    recommendedMRP: 30.0,
+    badge: 'Family Dhaba',
+    isVisible: true,
+    order: 11,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'hotel-500ml-executive-flagship',
+    title: '500ml Hotel Executive Dining Bottle',
+    subtitle: 'Metropolitan Hotels & Corporate Lounges',
+    description: 'Sleek contemporary glass bottle with deep royal navy foil labeling for luxury hotel dining and executive boardrooms.',
+    image: '/images/products/product-500ml-executive.jpg',
+    category: 'finedining',
+    categories: ['glass', 'finedining'],
+    size: '500ml',
+    sizeLabel: '500ml Executive Glass',
+    material: 'Contemporary Clear Glass',
+    capColor: 'Brushed Metallic Silver',
+    wholesaleRate: 15.0,
+    recommendedMRP: 45.0,
+    badge: 'Executive Suite',
+    isVisible: true,
+    order: 12,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'banquet-750ml-celebration-flagship',
+    title: '750ml Grand Banquet Celebration Bottle',
+    subtitle: 'Luxury Weddings & Grand Receptions',
+    description: 'Bespoke banquet edition with ivory and champagne-gold branding, tailored to harmonize with luxury wedding decor.',
+    image: '/images/products/product-750ml-banquet.jpg',
+    category: 'banquet',
+    categories: ['glass', 'banquet'],
+    size: '750ml_glass',
+    sizeLabel: '750ml Celebration Glass',
+    material: 'Pristine Heavy Glass',
+    capColor: 'Champagne Gold Cap',
+    wholesaleRate: 22.0,
+    recommendedMRP: 55.0,
+    badge: 'Wedding Banquet',
+    isVisible: true,
+    order: 13,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -218,11 +294,19 @@ export const GalleryService = {
 
   getAllItems(): GalleryItem[] {
     try {
+      // Clear legacy v1 storage if present to ensure new high-res photos load cleanly
+      if (localStorage.getItem('harit_jal_gallery_catalog_v1')) {
+        localStorage.removeItem('harit_jal_gallery_catalog_v1');
+      }
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((item) => ({
+            ...item,
+            image: item.image?.replace(/_studio\.jpg$/, '_studio.png') || item.image,
+          }));
         }
       }
     } catch (e) {

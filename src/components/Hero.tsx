@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneCall, ShieldCheck, CheckCircle2, Recycle, PenLine, Truck, ArrowRight, Images, Utensils } from 'lucide-react';
+import { PhoneCall, ShieldCheck, CheckCircle2, Recycle, PenLine, Truck, ArrowRight, Images } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 interface HeroProps {
@@ -48,15 +48,6 @@ export const Hero: React.FC<HeroProps> = ({
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-28 sm:pt-32 pb-8 sm:pb-10 my-auto z-10">
         
         <div className="max-w-2xl lg:max-w-3xl space-y-5 sm:space-y-6">
-          
-          {/* Small pill-shaped Tagline below navigation */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FFF9EF]/90 border border-[#C99B43]/50 text-[#102B46] text-xs sm:text-[13px] font-manrope shadow-sm backdrop-blur-md">
-            <Utensils className="w-3.5 h-3.5 text-[#C99B43]" />
-            <span className="font-bold text-[#455C22] font-devanagari">हर बूंद में शुद्धता, आपकी अपनी पहचान</span>
-            <span className="text-[#C99B43]/60">|</span>
-            <span className="text-[#77766F] text-[11px] sm:text-xs font-semibold">Exclusively for Restaurants & Hotels</span>
-          </div>
-
           {/* Main Headline - 2 Lines on Desktop (Playfair Display 64-74px) */}
           <div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[66px] xl:text-[72px] font-bold font-playfair tracking-tight leading-[1.14]">
@@ -95,7 +86,7 @@ export const Hero: React.FC<HeroProps> = ({
               <span className="text-[#455C22] font-devanagari font-bold">हरित जल</span>
               <span className="text-[#C99B43]/70 font-light">|</span>
               <span className="text-[#102B46] italic font-playfair font-semibold">
-                “आपकी पहचान, हर बूंद में शुद्धता”
+                “हर बूंद में शुद्धता, आपकी अपनी पहचान”
               </span>
             </div>
           </div>

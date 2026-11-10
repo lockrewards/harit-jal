@@ -1,0 +1,23 @@
+# Supabase Edge Function Gateway Configuration (Phase 1H.2 + API Security Hardening)
+# Enforces gateway JWT verification prior to Deno Edge Runtime execution.
+# ==============================================================================
+# HARIT JAL™ — PRODUCTION CLI SAFETY RESTRICTION (Phase 1H.8.4.1)
+# The default production project_id has been neutralized to prevent accidental,
+# silent mutations against production (doqzleqcyuymqyfjemcr).
+# All remote CLI operations (db push, functions deploy, secrets set) REQUIRE
+# passing an explicit staging project reference via `--project-ref <REF>`.
+# ==============================================================================
+# project_id = "DO-NOT-USE-UNQUALIFIED-CLI"
+
+[functions.staff-auth]
+verify_jwt = true
+
+[functions.validate-admin-route]
+verify_jwt = true
+
+[functions.send-email-otp]
+verify_jwt = true
+
+[functions.crm-sync]
+verify_jwt = true
+

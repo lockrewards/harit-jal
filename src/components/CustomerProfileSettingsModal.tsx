@@ -25,6 +25,7 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -32,10 +33,11 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
   const changesCount = customer.emailPhoneChangesCount || 0;
   const isLimitReached = changesCount >= 5;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setInfoNotice(null);
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPhone = phone.trim();
@@ -49,24 +51,42 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
     setIsSubmitting(true);
     soundPlayer.playWaterDrop();
 
-    const res = CustomerAuthService.updateCustomerProfile(
-      customer.id,
-      cleanEmail,
-      cleanPhone,
-      ownerName.trim(),
-      restaurantName.trim(),
-      city.trim()
-    );
+    try {
+      const res = await CustomerAuthService.updateCustomerProfile(
+        customer.id,
+        cleanEmail,
+        cleanPhone,
+        ownerName.trim(),
+        restaurantName.trim(),
+        city.trim()
+      );
 
-    setIsSubmitting(false);
-    if (res.success && res.customer) {
-      soundPlayer.playSuccessChime();
-      setSuccess('Profile updated successfully!');
-      onUpdated(res.customer);
-      setTimeout(() => setSuccess(null), 3000);
-    } else {
+      if (res.success && res.customer) {
+        soundPlayer.playSuccessChime();
+        setOwnerName(res.customer.ownerName);
+        setRestaurantName(res.customer.restaurantName);
+        setEmail(res.customer.email);
+        setPhone(res.customer.phone);
+        setCity(res.customer.city);
+        if (res.emailConfirmationPending) {
+          setInfoNotice(
+            'A confirmation link was sent to your new email address. Your portal email remains aligned with your active login until you confirm the change.'
+          );
+          setSuccess('Profile saved! Verify your new email via the inbox confirmation link.');
+        } else {
+          setSuccess('Profile updated successfully!');
+        }
+        onUpdated(res.customer);
+        setTimeout(() => setSuccess(null), 4000);
+      } else {
+        soundPlayer.playBubblePop();
+        setError(res.error || 'Failed to update profile.');
+      }
+    } catch (err: unknown) {
       soundPlayer.playBubblePop();
-      setError(res.error || 'Failed to update profile.');
+      setError(err instanceof Error ? err.message : 'Failed to update profile.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -112,6 +132,13 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs flex items-center gap-2">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{success}</span>
+            </div>
+          )}
+
+          {infoNotice && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>{infoNotice}</span>
             </div>
           )}
 

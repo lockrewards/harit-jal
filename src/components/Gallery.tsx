@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ShieldCheck, Droplets } from 'lucide-react';
+import { ArrowRight, Droplets } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 interface GalleryProps {

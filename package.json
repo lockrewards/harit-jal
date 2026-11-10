@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.functions.json --noEmit && vite build",
+    "typecheck:functions": "tsc -p tsconfig.functions.json --noEmit",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:guard": "node scripts/supabase-guard.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

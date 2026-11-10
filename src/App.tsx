@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { RouterProvider, useRouter } from './router/RouterContext';
+import { RouterProvider } from './router/RouterContext';
+import { useRouter } from './router/useRouter';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { BookCallModal } from './components/BookCallModal';
@@ -10,15 +11,16 @@ import { WaterBottleCursor } from './components/WaterBottleCursor';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { PageSkeletonLoader, TopLiquidProgressBar } from './components/PageSkeletonLoader';
 
-// Pages
+// Eager HomePage + NotFoundPage for instant initial paint; lazy-load secondary routes
 import { HomePage } from './pages/HomePage';
-import { GalleryPage } from './pages/GalleryPage';
-import { CollectionsPage } from './pages/CollectionsPage';
-import { HowItWorksPage } from './pages/HowItWorksPage';
-import { ContactPage } from './pages/ContactPage';
-import { CompliancePage } from './pages/CompliancePage';
-import { TrackPage } from './pages/TrackPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+
+const GalleryPage = lazy(() => import('./pages/GalleryPage').then(m => ({ default: m.GalleryPage })));
+const CollectionsPage = lazy(() => import('./pages/CollectionsPage').then(m => ({ default: m.CollectionsPage })));
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const CompliancePage = lazy(() => import('./pages/CompliancePage').then(m => ({ default: m.CompliancePage })));
+const TrackPage = lazy(() => import('./pages/TrackPage').then(m => ({ default: m.TrackPage })));
 
 // Lazy-loaded Admin Page for security and bundle isolation
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -27,6 +29,7 @@ import { StorageService } from './services/storage';
 import { CustomerAuthService } from './services/customerAuth';
 import { DynamicAdminRouter } from './services/dynamicAdminRouter';
 import { AdminAuthService } from './services/adminAuth';
+import { getSupabaseClient } from './services/supabase';
 
 const VALID_ROUTES = new Set([
   '/',
@@ -50,7 +53,7 @@ const VALID_ROUTES = new Set([
 function AppContent() {
   const { currentPath, targetPath, navigate, isNavigating } = useRouter();
 
-  const normalizedPath = currentPath.toLowerCase().replace(/\/+$/, '') || '/';
+  const normalizedPath = currentPath.split('?')[0].split('#')[0].toLowerCase().replace(/\/+$/, '') || '/';
   const dynamicAdminToken = DynamicAdminRouter.extractToken(normalizedPath);
   const isValidAdminToken = dynamicAdminToken
     ? (DynamicAdminRouter.validateRoute(dynamicAdminToken).isValid || AdminAuthService.isAuthenticated())
@@ -76,17 +79,37 @@ function AppContent() {
 
   // Track page visits
   useEffect(() => {
-    const pageLabel = currentPath === '/' ? 'Home' : currentPath.replace('/', '');
+    const cleanPath = currentPath.split('?')[0].split('#')[0];
+    const pageLabel = cleanPath === '/' ? 'Home' : cleanPath.replace('/', '');
     StorageService.trackCurrentVisitorSession(pageLabel);
   }, [currentPath]);
+
+  // Listen for Supabase Auth recovery & profile confirmation events
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.dispatchEvent(new CustomEvent('haritjalRecovery'));
+        navigate('/track?mode=recovery');
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        void CustomerAuthService.syncSessionProfile();
+      }
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, [navigate]);
 
   const handleSelectProductForCustomizer = () => {
     navigate('/gallery');
   };
 
   const handleOpenCustomerPortalForEmail = (email: string) => {
-    const cust = CustomerAuthService.login(email);
-    if (cust) {
+    const current = CustomerAuthService.getCurrentCustomer();
+    if (current && current.email.toLowerCase() === email.trim().toLowerCase()) {
       navigate('/track');
     } else {
       navigate('/login');
@@ -95,7 +118,7 @@ function AppContent() {
 
   // Route resolver
   const renderCurrentPage = () => {
-    const normalized = currentPath.toLowerCase().replace(/\/+$/, '') || '/';
+    const normalized = currentPath.split('?')[0].split('#')[0].toLowerCase().replace(/\/+$/, '') || '/';
 
     // 1. Dynamic Time-Based Administrative Access (DDMMYYHHMM)
     const token = DynamicAdminRouter.extractToken(normalized);
@@ -170,11 +193,7 @@ function AppContent() {
 
       case '/contact':
       case '/book-a-call':
-        return (
-          <ContactPage
-            onOpenCustomerPortal={handleOpenCustomerPortalForEmail}
-          />
-        );
+        return <ContactPage />;
 
       case '/compliance':
       case '/standards':
@@ -215,7 +234,9 @@ function AppContent() {
           <PageSkeletonLoader path={targetPath || currentPath} />
         ) : (
           <div key={currentPath} className="animate-page-enter w-full">
-            {renderCurrentPage()}
+            <Suspense fallback={<PageSkeletonLoader path={currentPath} />}>
+              {renderCurrentPage()}
+            </Suspense>
           </div>
         )}
       </main>

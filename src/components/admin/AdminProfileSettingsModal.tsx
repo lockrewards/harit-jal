@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
-import { Shield, KeyRound, Copy, Check, X, AlertTriangle, Smartphone, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Shield,
+  ShieldCheck,
+  KeyRound,
+  Check,
+  X,
+  AlertTriangle,
+  Smartphone,
+  Mail,
+} from 'lucide-react';
 import { AdminUser } from '../../types';
-import { StorageService } from '../../services/storage';
-import { TotpService } from '../../services/totpService';
+import { AdminAuthService } from '../../services/adminAuth';
+import { formatRoleDisplay, isAdminRole } from '../../services/roles';
+import { getSupabaseClient, isSupabaseConfigured } from '../../services/supabase';
 import { soundPlayer } from '../../services/sound';
 
 interface AdminProfileSettingsModalProps {
@@ -10,6 +20,16 @@ interface AdminProfileSettingsModalProps {
   user: AdminUser;
   onClose: () => void;
   onUpdated: (updatedUser: AdminUser) => void;
+}
+
+interface MfaStatusSnapshot {
+  loading: boolean;
+  currentLevel: string;
+  nextLevel: string;
+  verifiedCount: number;
+  factorId?: string;
+  friendlyName?: string;
+  source: 'supabase' | 'local_dev';
 }
 
 export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps> = ({
@@ -22,8 +42,83 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
   const [phone, setPhone] = useState(user.phone || '');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [copiedSecret, setCopiedSecret] = useState(false);
-  const [showQr, setShowQr] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [mfaStatus, setMfaStatus] = useState<MfaStatusSnapshot>({
+    loading: true,
+    currentLevel: 'checking',
+    nextLevel: 'checking',
+    verifiedCount: 0,
+    source: isSupabaseConfigured() ? 'supabase' : 'local_dev',
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+
+    const loadMfaState = async () => {
+      const supabase = getSupabaseClient();
+      if (!isSupabaseConfigured() || !supabase) {
+        await Promise.resolve();
+        if (isMounted) {
+          setMfaStatus({
+            loading: false,
+            currentLevel: user.totpEnabled ? 'aal1_dev' : 'aal1',
+            nextLevel: user.totpEnabled ? 'aal1_dev' : 'aal1',
+            verifiedCount: user.totpEnabled ? 1 : 0,
+            source: 'local_dev',
+          });
+        }
+        return;
+      }
+
+      try {
+        const [{ data: factorData }, { data: aalData }] = await Promise.all([
+          supabase.auth.mfa.listFactors(),
+          supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        ]);
+
+        const verifiedTotp =
+          factorData?.totp?.filter((f) => f.status === 'verified') ||
+          factorData?.all?.filter(
+            (f) =>
+              (f as { factor_type?: string; status?: string }).factor_type === 'totp' &&
+              f.status === 'verified'
+          ) ||
+          [];
+
+        const primaryFactor = verifiedTotp[0] as
+          | { id?: string; friendly_name?: string }
+          | undefined;
+
+        if (isMounted) {
+          setMfaStatus({
+            loading: false,
+            currentLevel: aalData?.currentLevel || 'aal1',
+            nextLevel: aalData?.nextLevel || 'aal1',
+            verifiedCount: verifiedTotp.length,
+            factorId: primaryFactor?.id,
+            friendlyName: primaryFactor?.friendly_name || 'Google Authenticator (TOTP)',
+            source: 'supabase',
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setMfaStatus({
+            loading: false,
+            currentLevel: 'unavailable',
+            nextLevel: 'unavailable',
+            verifiedCount: user.totpEnabled ? 1 : 0,
+            source: 'supabase',
+          });
+        }
+      }
+    };
+
+    void loadMfaState();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, user.totpEnabled]);
 
   if (!isOpen) return null;
 
@@ -31,24 +126,19 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
   const changesCount = user.emailPhoneChangesCount || 0;
   const isLimitReached = changesCount >= 5;
 
-  const totpSecret = user.totpSecret || 'JBSWY3DPEHPK3PXP';
-  const otpAuthUrl = TotpService.generateOtpAuthUrl(user.email, totpSecret, 'Harit Jal Super Admin');
-  const qrCodeUrl = TotpService.getQrCodeUrl(otpAuthUrl);
-
-  const handleCopySecret = () => {
-    navigator.clipboard.writeText(totpSecret);
-    setCopiedSecret(true);
-    soundPlayer.playWaterDrop();
-    setTimeout(() => setCopiedSecret(false), 2000);
-  };
-
-  const handleSaveContact = (e: React.FormEvent) => {
+  const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (user.role !== 'Super Admin') {
-      setError('Staff accounts cannot update credentials. Contact Super Admin.');
+    if (!isAdminRole(user.role) && !user.isRootSuperAdmin) {
+      setError('Staff accounts cannot update authoritative credentials. Contact Admin.');
+      soundPlayer.playBubblePop();
+      return;
+    }
+
+    if (user.isRootSuperAdmin === true) {
+      setError('Root Admin email address and mobile number are permanently bound and immutable.');
       soundPlayer.playBubblePop();
       return;
     }
@@ -68,22 +158,39 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
       return;
     }
 
-    const res = StorageService.updateAdminProfile(user.id, cleanEmail, cleanPhone);
-    if (res.success && res.user) {
-      soundPlayer.playSuccessChime();
-      setSuccess('Admin profile and credentials updated successfully!');
-      onUpdated(res.user);
-      setTimeout(() => setSuccess(null), 3000);
-    } else {
-      soundPlayer.playBubblePop();
-      setError(res.error || 'Failed to update credentials.');
+    setIsSaving(true);
+    soundPlayer.playWaterDrop();
+    try {
+      const res = await AdminAuthService.updateOwnAdminProfile({
+        userId: user.id,
+        email: cleanEmail,
+        phone: cleanPhone,
+        name: user.name,
+      });
+
+      if (res.success && res.user) {
+        soundPlayer.playSuccessChime();
+        setEmail(res.user.email);
+        setPhone(res.user.phone || cleanPhone);
+        setSuccess(
+          isSupabaseConfigured()
+            ? 'Super Admin profile and Supabase Auth identity updated on server!'
+            : 'Admin profile and credentials updated successfully!'
+        );
+        onUpdated(res.user);
+        setTimeout(() => setSuccess(null), 4000);
+      } else {
+        soundPlayer.playBubblePop();
+        setError(res.error || 'Failed to update credentials.');
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
       <div className="w-full max-w-lg bg-[#FFF9EF] border border-[#C99B42]/50 rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47]">
-        
         {/* Header */}
         <div className="p-5 bg-[#F8F3E9] border-b border-[#C99B42]/30 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -92,10 +199,10 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
             </div>
             <div>
               <h2 className="text-lg font-bold font-playfair text-[#102C47]">
-                Super Admin Security & Profile
+                Super Admin Security &amp; Profile
               </h2>
               <p className="text-[11px] text-[#77766F]">
-                Manage authoritative admin contact and Google Authenticator 2FA.
+                Role: {formatRoleDisplay(user.role)} • Native Supabase MFA Status
               </p>
             </div>
           </div>
@@ -110,7 +217,6 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
 
         {/* Content Body */}
         <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
-          
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
@@ -135,11 +241,13 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
                 Email / Mobile updates allowed: <strong>5 maximum</strong>
               </p>
             </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-              isLimitReached
-                ? 'bg-red-100 text-red-800 border-red-300'
-                : 'bg-[#F8F5EC] text-[#52652D] border-[#C99A3C]/40'
-            }`}>
+            <div
+              className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                isLimitReached
+                  ? 'bg-red-100 text-red-800 border-red-300'
+                  : 'bg-[#F8F5EC] text-[#52652D] border-[#C99A3C]/40'
+              }`}
+            >
               {changesCount} of 5 used
             </div>
           </div>
@@ -187,61 +295,66 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
             <div className="pt-1">
               <button
                 type="submit"
-                disabled={isLimitReached}
+                disabled={isLimitReached || isSaving}
                 className="btn-gold-luxury w-full py-2.5 rounded-full font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLimitReached ? 'Lifetime Limit Reached (Locked)' : 'Save Contact Changes'}
+                {isLimitReached
+                  ? 'Lifetime Limit Reached (Locked)'
+                  : isSaving
+                    ? 'Saving Authoritative Profile...'
+                    : 'Save Contact Changes'}
               </button>
             </div>
           </form>
 
-          {/* GOOGLE AUTHENTICATOR (TOTP) KEY & QR DISPLAY */}
+          {/* LIVE NATIVE GOTRUE MFA FACTOR STATUS (NO CLIENT-SIDE SECRET EXPOSURE) */}
           <div className="p-4 rounded-2xl bg-white border border-[#C99B42]/35 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <KeyRound className="w-4 h-4 text-[#C99B42]" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#102C47]">
-                  Google Authenticator (TOTP) Secret
+                  Google Authenticator Native MFA
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowQr(!showQr)}
-                className="text-[11px] font-bold text-[#52652D] hover:underline cursor-pointer"
+
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${
+                  mfaStatus.currentLevel === 'aal2'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}
               >
-                {showQr ? 'Hide QR Code' : 'Show QR Code'}
-              </button>
+                {mfaStatus.loading ? 'Checking...' : `Assurance: ${mfaStatus.currentLevel.toUpperCase()}`}
+              </span>
             </div>
 
-            {showQr && (
-              <div className="flex flex-col items-center p-3 rounded-xl bg-[#F8F5EC] border border-[#C99A3C]/30 animate-fadeIn">
-                <div className="w-32 h-32 bg-white p-1 rounded-xl border border-[#C99A3C]/40 shadow-xs mb-2">
-                  <img src={qrCodeUrl} alt="Google Authenticator QR" className="w-full h-full object-contain" />
-                </div>
-                <span className="text-[10.5px] text-[#77766F] text-center">
-                  Scan with Google Authenticator app on iOS or Android.
-                </span>
+            <div className="p-3 rounded-xl bg-[#F8F5EC] border border-[#C99A3C]/30 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[#77766F]">Verified TOTP Factors:</span>
+                <strong className="text-[#102C47] flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{mfaStatus.verifiedCount} Active</span>
+                </strong>
               </div>
-            )}
-
-            <div className="flex items-center gap-1.5 bg-[#F8F5EC] px-3 py-2 rounded-xl border border-[#C99A3C]/30 font-mono text-xs text-[#102C47] font-bold">
-              <span className="tracking-widest flex-1 select-all">{totpSecret}</span>
-              <button
-                type="button"
-                onClick={handleCopySecret}
-                className="p-1 text-[#77766F] hover:text-[#102C47] cursor-pointer"
-                title="Copy Secret"
-              >
-                {copiedSecret ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              </button>
+              {mfaStatus.factorId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[#77766F]">Active Factor ID:</span>
+                  <span className="font-mono text-[11px] text-[#102C47]">{mfaStatus.factorId}</span>
+                </div>
+              )}
+              {mfaStatus.friendlyName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[#77766F]">Authenticator Device:</span>
+                  <span className="font-semibold text-[#102C47]">{mfaStatus.friendlyName}</span>
+                </div>
+              )}
             </div>
-            <p className="text-[10px] text-[#77766F]">
-              Every administrative login requires the live 6-digit code from Google Authenticator.
+
+            <p className="text-[10.5px] text-[#77766F] leading-relaxed">
+              For security compliance, TOTP seeds are stored encrypted inside Supabase Auth GoTrue (`auth.mfa_factors`) and are never exposed after initial QR enrollment. Every privileged action is enforced server-side at <strong>AAL2</strong>.
             </p>
           </div>
-
         </div>
-
       </div>
     </div>
   );

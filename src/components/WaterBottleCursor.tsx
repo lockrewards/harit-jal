@@ -111,6 +111,7 @@ export const WaterBottleCursor: React.FC = () => {
   // Main mouse and interaction event handlers
   useEffect(() => {
     if (!isEnabled) return;
+    updateCursorTransform();
 
     const handleMouseMove = (e: MouseEvent) => {
       mousePos.current.x = e.clientX;
@@ -282,9 +283,6 @@ export const WaterBottleCursor: React.FC = () => {
         className={`fixed top-0 left-0 pointer-events-none z-[99999] will-change-transform transition-opacity duration-150 ${
           isVisible ? 'opacity-100' : 'opacity-0'
         }`}
-        style={{
-          transform: `translate3d(${mousePos.current.x - 1}px, ${mousePos.current.y}px, 0)`,
-        }}
         aria-hidden="true"
       >
         <div

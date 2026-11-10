@@ -58,6 +58,25 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
+  // Sync authoritative server block status on mount/email updates
+  useEffect(() => {
+    if (!email || !email.includes('@')) return;
+    let active = true;
+    const checkServer = async () => {
+      const serverCheck = await OtpService.syncServerBlockStatus(email);
+      if (active && serverCheck.isBlocked) {
+        setIsBlocked(true);
+        setBlockMessage(
+          `This email, device, or network is locked for 24 hours due to multiple failed verification attempts. Remaining: ${serverCheck.remainingFormatted || 'up to 24h'}.`
+        );
+      }
+    };
+    void checkServer();
+    return () => {
+      active = false;
+    };
+  }, [email]);
+
   // Master Countdown Timer (1s tick)
   useEffect(() => {
     if (!isOtpSent || isVerified || isBlocked) return;
@@ -92,8 +111,9 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // Send OTP
-  const handleSendOtp = () => {
+  // Send OTP (authoritative Edge Function dispatch)
+  const handleSendOtp = async () => {
+    if (isSending) return;
     setError(null);
     setSuccessMsg(null);
 
@@ -115,32 +135,35 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     setIsSending(true);
     soundPlayer.playWaterDrop();
 
-    setTimeout(() => {
-      const res = OtpService.sendOtp(cleanEmail, purpose, pendingData);
-      setIsSending(false);
-
+    try {
+      const res = await OtpService.sendOtp(cleanEmail, purpose, pendingData);
       if (res.success) {
         setIsOtpSent(true);
         setDigits(['', '', '', '', '', '']);
         setValiditySeconds(300);
         setResendSeconds(60);
         setAttemptsRemaining(3);
-        setSuccessMsg(`6-digit OTP code dispatched to ${cleanEmail}. Valid for 5 minutes.`);
+        setSuccessMsg(`6-digit OTP code dispatched to ${cleanEmail}. Please check your inbox and spam folder.`);
         soundPlayer.playWaterDrop();
 
         setTimeout(() => {
           inputRefs.current[0]?.focus();
         }, 100);
       } else {
-        if (res.error?.includes('blocked for 24 hours')) {
+        if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours')) {
           setIsBlocked(true);
-          setBlockMessage(res.error);
+          setBlockMessage(res.error || 'Blocked for 24 hours.');
         } else {
+          if (typeof res.resendInSeconds === 'number' && res.resendInSeconds > 0) {
+            setResendSeconds(res.resendInSeconds);
+          }
           setError(res.error || 'Failed to dispatch verification code.');
         }
         soundPlayer.playBubblePop();
       }
-    }, 300);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Digit change
@@ -162,7 +185,7 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     if (index === 5 && cleaned) {
       const full = [...next.slice(0, 5), cleaned[cleaned.length - 1]].join('');
       if (full.length === 6) {
-        triggerVerification(full);
+        void triggerVerification(full);
       }
     }
   };
@@ -187,14 +210,15 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     soundPlayer.playWaterDrop();
 
     if (pasted.length === 6) {
-      triggerVerification(pasted);
+      void triggerVerification(pasted);
     } else {
       inputRefs.current[pasted.length]?.focus();
     }
   };
 
-  // Trigger verify
-  const triggerVerification = (codeToVerify?: string) => {
+  // Trigger verify (authoritative Edge Function verification)
+  const triggerVerification = async (codeToVerify?: string) => {
+    if (isVerifying) return;
     const fullCode = codeToVerify || digits.join('');
     if (fullCode.length !== 6) {
       setError('Please enter all 6 digits of the OTP code.');
@@ -211,25 +235,28 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     setIsVerifying(true);
     soundPlayer.playWaterDrop();
 
-    const result = OtpService.verifyOtp(email, fullCode, purpose);
-    setIsVerifying(false);
+    try {
+      const result = await OtpService.verifyOtp(email, fullCode, purpose);
 
-    if (result.success) {
-      soundPlayer.playSuccessChime();
-      setSuccessMsg('Email verified successfully! You can now submit your account request.');
-      setError(null);
-      onVerified();
-    } else {
-      soundPlayer.playBubblePop();
-      if (result.isBlocked) {
-        setIsBlocked(true);
-        setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+      if (result.success) {
+        soundPlayer.playSuccessChime();
+        setSuccessMsg('Email verified successfully! You can now submit your account request.');
+        setError(null);
+        onVerified();
       } else {
-        setError(result.error || 'Incorrect OTP code.');
-        if (result.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(result.attemptsRemaining);
+        soundPlayer.playBubblePop();
+        if (result.isBlocked) {
+          setIsBlocked(true);
+          setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+        } else {
+          setError(result.error || 'Incorrect OTP code.');
+          if (result.attemptsRemaining !== undefined) {
+            setAttemptsRemaining(result.attemptsRemaining);
+          }
         }
       }
+    } finally {
+      setIsVerifying(false);
     }
   };
 

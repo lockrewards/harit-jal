@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Home, Layers, Headphones, ArrowRight, MapPin, Mail, Phone } from 'lucide-react';
-import { useRouter } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 import { soundPlayer } from '../services/sound';
 
 export const NotFoundPage: React.FC = () => {

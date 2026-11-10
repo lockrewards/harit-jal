@@ -7,6 +7,8 @@
  * ====================================================================
  */
 
+import { isProductionEnvironment, readViteEnv } from './env';
+
 export interface RouteValidationResult {
   isValid: boolean;
   token: string;
@@ -36,6 +38,18 @@ export const DynamicAdminRouter = {
     const parts = formatter.formatToParts(date);
     const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
     return `${map.day}${map.month}${map.year}${map.hour}${map.minute}`;
+  },
+
+  /**
+   * Generates local system time 10-digit token (DDMMYYHHMM) for a given Date
+   */
+  generateLocalToken(date: Date = new Date()): string {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    return `${day}${month}${year}${hour}${minute}`;
   },
 
   /**
@@ -126,11 +140,12 @@ export const DynamicAdminRouter = {
       };
     }
 
-    // Current authoritative IST token
+    // Current authoritative IST & Local tokens (supports current minute validation)
     const now = new Date();
     const currentValidToken = this.generateISTToken(now);
+    const currentLocalToken = this.generateLocalToken(now);
 
-    if (token === currentValidToken) {
+    if (token === currentValidToken || token === currentLocalToken) {
       const secondsLeft = 60 - now.getSeconds();
       return {
         isValid: true,
@@ -162,23 +177,48 @@ export const DynamicAdminRouter = {
   },
 
   /**
-   * Asynchronously attempts authoritative verification against Supabase Edge Function
-   * If Edge Function is not deployed or network fails, falls back to strict client IST verification
+   * Asynchronously attempts authoritative verification against Supabase Edge Function.
+   * Sends both `apikey` and `Authorization: Bearer` headers required when `verify_jwt = true`.
+   * Fails CLOSED in production whenever Edge Function verification is missing, rejected, or unreachable.
    */
   async validateRouteAuthoritative(tokenOrPath: string): Promise<RouteValidationResult> {
-    const localResult = this.validateRoute(tokenOrPath);
-    if (!localResult.isValid) return localResult;
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !anonKey) {
-      // Backend Edge Function pending deployment
+    const token = this.extractToken(tokenOrPath);
+    if (!token) {
       return {
-        ...localResult,
-        mode: 'local_ist_mock',
+        isValid: false,
+        token: tokenOrPath,
+        reason: 'Path does not match dynamic route pattern.',
+        mode: isProductionEnvironment() ? 'server_edge_function' : 'local_ist_mock',
         serverVerified: false,
       };
+    }
+
+    const parsed = this.parseTokenComponents(token);
+    if (!parsed.valid) {
+      return {
+        isValid: false,
+        token,
+        reason: parsed.error || 'Calendar component out of range.',
+        mode: isProductionEnvironment() ? 'server_edge_function' : 'local_ist_mock',
+        serverVerified: false,
+      };
+    }
+
+    const isProd = isProductionEnvironment();
+    const supabaseUrl = readViteEnv('VITE_SUPABASE_URL');
+    const anonKey = readViteEnv('VITE_SUPABASE_ANON_KEY');
+
+    if (!supabaseUrl || !anonKey || supabaseUrl.includes('your-project-id')) {
+      if (isProd) {
+        return {
+          isValid: false,
+          token,
+          reason: 'Production administrative gateway requires configured server route verification.',
+          mode: 'server_edge_function',
+          serverVerified: false,
+        };
+      }
+      return this.validateRoute(tokenOrPath);
     }
 
     try {
@@ -187,14 +227,19 @@ export const DynamicAdminRouter = {
         headers: {
           'Content-Type': 'application/json',
           'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
         },
-        body: JSON.stringify({ routeToken: localResult.token }),
+        body: JSON.stringify({ routeToken: token }),
       });
 
       if (!res.ok) {
+        if (!isProd) {
+          // Graceful fallback to local validation in development when Edge Function is not deployed
+          return this.validateRoute(tokenOrPath);
+        }
         return {
           isValid: false,
-          token: localResult.token,
+          token,
           reason: 'Server route verification failed or rate limit exceeded.',
           mode: 'server_edge_function',
           serverVerified: true,
@@ -203,14 +248,24 @@ export const DynamicAdminRouter = {
 
       const data = await res.json();
       return {
-        isValid: !!data.valid,
-        token: localResult.token,
+        isValid: Boolean(data.valid),
+        token,
         mode: 'server_edge_function',
         serverVerified: true,
         expiresInSeconds: data.expiresInSeconds,
       };
     } catch {
-      // Graceful fallback to client validation if offline
+      if (isProd) {
+        return {
+          isValid: false,
+          token,
+          reason: 'Authoritative server route verification service is unreachable.',
+          mode: 'server_edge_function',
+          serverVerified: false,
+        };
+      }
+      // Graceful fallback to local IST validation strictly in non-production development/test
+      const localResult = this.validateRoute(tokenOrPath);
       return {
         ...localResult,
         mode: 'local_ist_mock',

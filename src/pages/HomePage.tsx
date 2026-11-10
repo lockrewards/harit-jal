@@ -1,7 +1,7 @@
 import React from 'react';
-import { ArrowRight, PhoneCall, ShieldCheck, CheckCircle2, Truck, Droplets, Award, Utensils, Images, Info } from 'lucide-react';
+import { ArrowRight, PhoneCall, ShieldCheck, CheckCircle2, Truck, Award, Images } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
-import { useRouter } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 import { PRODUCT_COLLECTIONS } from '../data/products';
 
 interface HomePageProps {
@@ -11,7 +11,7 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({
   onOpenBookingModal,
-  onSelectProductForCustomizer,
+  onSelectProductForCustomizer: _onSelectProductForCustomizer,
 }) => {
   const { navigate } = useRouter();
 
@@ -45,15 +45,6 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Content on left */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-20 sm:pt-24 pb-6 sm:pb-8 my-auto z-10">
           <div className="max-w-2xl lg:max-w-3xl space-y-3.5 sm:space-y-4">
-            
-            {/* Tagline Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF9EF]/95 border border-[#C99B42]/50 text-[#102C47] text-xs sm:text-[12.5px] shadow-sm backdrop-blur-md">
-              <Utensils className="w-3.5 h-3.5 text-[#C99B42]" />
-              <span className="font-bold text-[#52652D] font-devanagari">हर बूंद में शुद्धता, आपकी अपनी पहचान</span>
-              <span className="text-[#C99B42]/50">|</span>
-              <span className="text-[#77766F] text-[10.5px] sm:text-xs font-semibold">Exclusively for Restaurants & Hotels</span>
-            </div>
-
             {/* Main Headline */}
             <div>
               <h1 className="text-3xl sm:text-5xl md:text-[54px] lg:text-[60px] font-bold font-playfair tracking-tight leading-[1.12]">
@@ -85,7 +76,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <span className="text-[#52652D] font-devanagari font-bold">हरित जल</span>
                 <span className="text-[#C99B42]/70 font-light">|</span>
                 <span className="text-[#102C47] italic font-playfair">
-                  “आपकी पहचान, हर बूंद में शुद्धता”
+                  “हर बूंद में शुद्धता, आपकी अपनी पहचान”
                 </span>
               </div>
             </div>

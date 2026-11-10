@@ -1,5 +1,4 @@
 import React from 'react';
-import { Droplets } from 'lucide-react';
 
 interface PageSkeletonLoaderProps {
   path?: string | null;

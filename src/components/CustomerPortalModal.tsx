@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
-  X, PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle, UserCheck
+  X, PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle, UserCheck, AlertTriangle
 } from 'lucide-react';
 import { CustomerAccount, CustomerOrder, CallBooking } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
 import { StorageService } from '../services/storage';
 import { OtpService } from '../services/otpService';
+import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
+import { isProductionEnvironment } from '../services/env';
 import { CustomerOtpCard } from './CustomerOtpCard';
 import { InlineOtpSection } from './InlineOtpSection';
 import { CustomerProfileSettingsModal } from './CustomerProfileSettingsModal';
+import { UnifiedLoginCard } from './auth/UnifiedLoginCard';
 import { soundPlayer } from '../services/sound';
 
 interface CustomerPortalModalProps {
@@ -42,29 +45,30 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
   const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState(prefillEmail || 'karanpreet@karanthedhaba.com');
-  const [loginPassword, setLoginPassword] = useState('password123');
+  const [loginEmail, setLoginEmail] = useState(prefillEmail || '');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
 
   // Forgot password form state
   const [forgotEmail, setForgotEmail] = useState(prefillEmail || '');
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
 
   // Sign up form state
-  const [signupRestaurant, setSignupRestaurant] = useState(prefillRestaurant || 'Karan The Dhaba');
-  const [signupOwner, setSignupOwner] = useState(prefillOwner || 'Karanpreet Singh');
-  const [signupPhone, setSignupPhone] = useState(prefillPhone || '+91 62992 93497');
-  const [signupEmail, setSignupEmail] = useState(prefillEmail || 'info@haritjal.in');
-  const [signupCity, setSignupCity] = useState(prefillCity || 'Murthal, GT Road, Haryana');
-  const [signupPassword, setSignupPassword] = useState('password123');
-  const [signupDpdpConsent, setSignupDpdpConsent] = useState(true);
+  const [signupRestaurant, setSignupRestaurant] = useState(prefillRestaurant || '');
+  const [signupOwner, setSignupOwner] = useState(prefillOwner || '');
+  const [signupPhone, setSignupPhone] = useState(prefillPhone || '');
+  const [signupEmail, setSignupEmail] = useState(prefillEmail || '');
+  const [signupCity, setSignupCity] = useState(prefillCity || '');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupDpdpConsent, setSignupDpdpConsent] = useState(false);
 
   // Place order state
   const [orderSize, setOrderSize] = useState<'250ml' | '500ml' | '750ml_glass' | '1000ml'>('500ml');
   const [orderCases, setOrderCases] = useState<number>(50);
-  const [deliveryAddress, setDeliveryAddress] = useState('Milestone 52, GT Karnal Road, Murthal, Haryana');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // Rates
   const getRate = (size: typeof orderSize) => {
@@ -77,47 +81,67 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
   const totalBottles = orderCases * bottlesPerCase;
   const totalCost = totalBottles * getRate(orderSize);
 
-  useEffect(() => {
-    if (isOpen) {
-      const user = CustomerAuthService.getCurrentCustomer();
-      setCurrentUser(user);
-      if (user) {
-        refreshCustomerData(user.email);
-      }
-    }
-  }, [isOpen]);
+  const refreshCustomerData = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
 
-  const refreshCustomerData = (email: string) => {
-    const customerOrders = CustomerAuthService.getOrdersForCustomer(email);
+    if (isSupabaseConfigured()) {
+      const [cloudOrders, cloudBookings] = await Promise.all([
+        SupabaseService.fetchOrdersForCustomer(cleanEmail),
+        SupabaseService.fetchConsultationsForCustomer(cleanEmail),
+      ]);
+
+      if (cloudOrders) {
+        CustomerAuthService.setOrdersCache(cloudOrders);
+        setOrders(cloudOrders);
+      } else {
+        setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+      }
+
+      if (cloudBookings) {
+        setMyInquiries(cloudBookings);
+      } else {
+        setMyInquiries(
+          StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
+        );
+      }
+      return;
+    }
+
+    const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
     setOrders(customerOrders);
 
-    // Filter inquiries by email
     const allInquiries = StorageService.getBookings();
-    const matched = allInquiries.filter(
-      (inq) => inq.email.toLowerCase() === email.toLowerCase()
-    );
+    const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
     setMyInquiries(matched);
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const syncOnOpen = async () => {
+      let user = CustomerAuthService.getCurrentCustomer();
+      if (!user && isSupabaseConfigured()) {
+        user = await CustomerAuthService.syncSessionProfile();
+      } else {
+        await Promise.resolve();
+      }
+      if (cancelled) return;
+      setCurrentUser(user);
+      if (user) {
+        await refreshCustomerData(user.email);
+      }
+    };
+
+    void syncOnOpen();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    soundPlayer.playWaterDrop();
-
-    const res = CustomerAuthService.loginWithSecurity(loginEmail, loginPassword);
-    if (res.success && res.customer) {
-      setCurrentUser(res.customer);
-      refreshCustomerData(res.customer.email);
-      soundPlayer.playSuccessChime();
-    } else {
-      soundPlayer.playBubblePop();
-      setLoginError(res.error || 'Invalid email or password. Use demo credentials or click Create Account.');
-    }
-  };
-
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginSuccess(null);
@@ -134,8 +158,8 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
       return;
     }
 
-    if (!signupPassword || signupPassword.length < 6) {
-      setLoginError('Password must be at least 6 characters.');
+    if (!signupPassword || signupPassword.length < 8) {
+      setLoginError('Password must be at least 8 characters.');
       soundPlayer.playBubblePop();
       return;
     }
@@ -147,32 +171,49 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
     }
 
     soundPlayer.playWaterDrop();
-    const newAccount = CustomerAuthService.register({
-      restaurantName: signupRestaurant,
-      ownerName: signupOwner,
-      email: signupEmail,
-      phone: signupPhone,
-      city: signupCity,
-      password: signupPassword,
-    });
+    try {
+      const res = await CustomerAuthService.signUpWithSupabaseAuth({
+        restaurantName: signupRestaurant,
+        ownerName: signupOwner,
+        email: signupEmail,
+        phone: signupPhone,
+        city: signupCity,
+        password: signupPassword,
+      });
 
-    setCurrentUser(newAccount);
-    refreshCustomerData(newAccount.email);
-    soundPlayer.playSuccessChime();
+      if (res.success && res.customer) {
+        setCurrentUser(res.customer);
+        await refreshCustomerData(res.customer.email);
+        soundPlayer.playSuccessChime();
 
-    confetti({
-      particleCount: 85,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#C99B43', '#455C22', '#102B46'],
-    });
+        confetti({
+          particleCount: 85,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#C99B43', '#455C22', '#102B46'],
+        });
 
-    setLoginSuccess('Thank you for creating an account! Your restaurant partner portal is now active.');
+        setLoginSuccess('Thank you for creating an account! Your restaurant partner portal is now active.');
+      } else if (res.success && res.requiresEmailConfirmation) {
+        soundPlayer.playSuccessChime();
+        setLoginSuccess('Account created! Please check your email inbox and click the confirmation link before signing in.');
+        setLoginEmail(signupEmail.trim().toLowerCase());
+        setMode('login');
+      } else {
+        setLoginError(res.error || 'Registration failed. Please check your credentials.');
+        soundPlayer.playBubblePop();
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred during account creation.';
+      setLoginError(message);
+      soundPlayer.playBubblePop();
+    }
   };
 
-  const handleRequestPasswordReset = (e: React.FormEvent) => {
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError(null);
+    setForgotSuccess(null);
     soundPlayer.playWaterDrop();
 
     if (!forgotEmail || !forgotEmail.includes('@')) {
@@ -188,8 +229,11 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
       return;
     }
 
-    const res = OtpService.requestPasswordReset(forgotEmail);
-    if (res.success) {
+    const res = await OtpService.requestSupabasePasswordReset(forgotEmail);
+    if (res.success && res.recoveryEmailSent) {
+      soundPlayer.playSuccessChime();
+      setForgotSuccess('Password recovery link dispatched! Please check your email inbox and click the reset link to set a new password.');
+    } else if (res.success && res.useLocalOtp && !isProductionEnvironment()) {
       setMode('verify_reset_otp');
     } else {
       setForgotError(res.error || 'Failed to initiate password reset.');
@@ -206,10 +250,11 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
     setMode('login');
   };
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
 
+    setOrderError(null);
     soundPlayer.playWaterDrop();
     const newOrder = CustomerAuthService.placeOrder({
       ownerEmail: currentUser.email,
@@ -222,6 +267,23 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
       deliveryAddress,
     });
 
+    const orderSynced = await SupabaseService.syncOrder({
+      ...newOrder,
+      ownerName: currentUser.ownerName,
+      phone: currentUser.phone,
+    });
+
+    if (isSupabaseConfigured() && !orderSynced) {
+      CustomerAuthService.setOrdersCache(
+        CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
+      );
+      soundPlayer.playBubblePop();
+      setOrderError(
+        'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
+      );
+      return;
+    }
+
     confetti({
       particleCount: 90,
       spread: 70,
@@ -231,7 +293,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
 
     soundPlayer.playSuccessChime();
     setOrderSuccess(`Order ${newOrder.id} placed successfully! Automated fleet dispatch scheduled.`);
-    refreshCustomerData(currentUser.email);
+    await refreshCustomerData(currentUser.email);
     setActiveTab('track');
     setTimeout(() => setOrderSuccess(null), 5000);
   };
@@ -464,6 +526,13 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                   <span className="text-xs text-[#455C22] font-bold">BIS IS:14543 Standard</span>
                 </div>
 
+                {orderError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{orderError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#102B46] mb-1">Select Bottle Format</label>
@@ -612,72 +681,35 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
               </div>
             )}
 
-            {/* LOGIN FORM */}
+            {/* UNIFIED PARTNER LOGIN CARD */}
             {mode === 'login' && (
-              <form onSubmit={handleLogin} className="max-w-md mx-auto space-y-4">
+              <div className="max-w-md mx-auto">
                 {loginSuccess && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <div className="p-3 mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>{loginSuccess}</span>
                   </div>
                 )}
-
-                {loginError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-                    {loginError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-[#102B46] mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="owner@restaurant.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-[#102B46]">Password</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundPlayer.playWaterDrop();
-                        setForgotEmail(loginEmail || '');
-                        setForgotError(null);
-                        setMode('forgot_password');
-                      }}
-                      className="text-xs font-semibold text-[#102B46] hover:text-[#C99B43] hover:underline cursor-pointer"
-                    >
-                      Forgot your password?
-                    </button>
-                  </div>
-                  <input
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn-gold-luxury w-full py-3 rounded-full font-bold text-xs shadow-md transition cursor-pointer"
-                >
-                  Sign In to Partner Portal
-                </button>
-
-                <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B43]/20 text-[11px] text-[#77766F] space-y-1">
-                  <div className="font-bold text-[#102B46]">Demo Partner Account:</div>
-                  <div>Email: <strong className="font-mono text-[#102B46]">karanpreet@karanthedhaba.com</strong></div>
-                  <div>Password: <strong className="font-mono text-[#102B46]">password123</strong></div>
-                </div>
-              </form>
+                <UnifiedLoginCard
+                  initialAccountType="partner"
+                  allowedAccountTypes={['partner']}
+                  initialIdentifier={loginEmail}
+                  onSuccess={async (result) => {
+                    if (result.partnerUser) {
+                      setCurrentUser(result.partnerUser);
+                      await refreshCustomerData(result.partnerUser.email);
+                      soundPlayer.playSuccessChime();
+                    }
+                  }}
+                  onForgotPassword={(identifier) => {
+                    soundPlayer.playWaterDrop();
+                    setForgotEmail(identifier || '');
+                    setForgotError(null);
+                    setForgotSuccess(null);
+                    setMode('forgot_password');
+                  }}
+                />
+              </div>
             )}
 
             {/* SIGN UP FORM */}
@@ -697,6 +729,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupRestaurant}
                       onChange={(e) => setSignupRestaurant(e.target.value)}
+                      placeholder="Your business name"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -707,6 +740,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupOwner}
                       onChange={(e) => setSignupOwner(e.target.value)}
+                      placeholder="Your name"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -717,6 +751,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupPhone}
                       onChange={(e) => setSignupPhone(e.target.value)}
+                      placeholder="1234567890"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -727,6 +762,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="your@gmail.com"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -737,6 +773,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupCity}
                       onChange={(e) => setSignupCity(e.target.value)}
+                      placeholder="Your business location"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -747,6 +784,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                       required
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
+                      placeholder="••••••••"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B43]/35 text-xs text-[#102B46] font-medium focus:outline-none"
                     />
                   </div>
@@ -806,9 +844,16 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                     Reset Partner Password
                   </h3>
                   <p className="text-xs text-[#77766F] mt-1 leading-relaxed">
-                    Enter your registered restaurant email address. We will dispatch a 6-digit OTP verification code to reset your account password.
+                    Enter your registered restaurant email address to receive your password recovery link or verification challenge.
                   </p>
                 </div>
+
+                {forgotSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{forgotSuccess}</span>
+                  </div>
+                )}
 
                 {forgotError && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
@@ -832,13 +877,14 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                   type="submit"
                   className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
                 >
-                  Send 6-Digit OTP Code →
+                  Send Recovery Instructions →
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
                     soundPlayer.playWaterDrop();
+                    setForgotSuccess(null);
                     setLoginError(null);
                     setMode('login');
                   }}
@@ -862,17 +908,43 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                   city: signupCity,
                   password: signupPassword,
                 }}
-                onSuccess={(res) => {
-                  const newAccount = CustomerAuthService.register(res.pendingData);
-                  setCurrentUser(newAccount);
-                  refreshCustomerData(newAccount.email);
-                  soundPlayer.playSuccessChime();
-                  confetti({
-                    particleCount: 80,
-                    spread: 70,
-                    origin: { y: 0.6 },
-                    colors: ['#C99B43', '#455C22', '#102B46'],
+                onSuccess={async (res) => {
+                  const pending = (res.pendingData || {}) as {
+                    restaurantName?: string;
+                    ownerName?: string;
+                    phone?: string;
+                    email?: string;
+                    city?: string;
+                    password?: string;
+                  };
+                  const resolvedEmail = pending.email || signupEmail;
+                  const authRes = await CustomerAuthService.signUpWithSupabaseAuth({
+                    restaurantName: pending.restaurantName || signupRestaurant,
+                    ownerName: pending.ownerName || signupOwner,
+                    phone: pending.phone || signupPhone,
+                    email: resolvedEmail,
+                    city: pending.city || signupCity,
+                    password: pending.password || signupPassword,
                   });
+                  if (authRes.success && authRes.customer) {
+                    setCurrentUser(authRes.customer);
+                    await refreshCustomerData(authRes.customer.email);
+                    soundPlayer.playSuccessChime();
+                    confetti({
+                      particleCount: 80,
+                      spread: 70,
+                      origin: { y: 0.6 },
+                      colors: ['#C99B43', '#455C22', '#102B46'],
+                    });
+                  } else if (authRes.success && authRes.requiresEmailConfirmation) {
+                    soundPlayer.playSuccessChime();
+                    setLoginSuccess('Account created! Please check your email inbox and click the confirmation link before signing in.');
+                    setLoginEmail(resolvedEmail.trim().toLowerCase());
+                    setMode('login');
+                  } else {
+                    setLoginError(authRes.error || 'Registration failed. Please try again.');
+                    setMode('signup');
+                  }
                 }}
                 onCancel={() => {
                   soundPlayer.playWaterDrop();
@@ -886,7 +958,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
             )}
 
             {/* VERIFY FORGOT PASSWORD OTP */}
-            {mode === 'verify_reset_otp' && (
+            {mode === 'verify_reset_otp' && !isProductionEnvironment() && (
               <CustomerOtpCard
                 email={forgotEmail}
                 purpose="forgot_password"
@@ -894,7 +966,6 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                   soundPlayer.playSuccessChime();
                   setLoginSuccess('Password reset successfully! Please sign in with your new password.');
                   setLoginEmail(forgotEmail);
-                  setLoginPassword('');
                   setMode('login');
                 }}
                 onCancel={() => {
@@ -921,7 +992,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
           onClose={() => setShowProfileSettings(false)}
           onUpdated={(updated) => {
             setCurrentUser(updated);
-            refreshCustomerData(updated.email);
+            void refreshCustomerData(updated.email);
           }}
         />
       )}

@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShieldCheck, Lock, Mail, Home, LogOut, AlertTriangle, 
-  Eye, EyeOff, Layers, BarChart3, Settings, KeyRound,
-  ArrowLeft, Smartphone, CheckCircle2
+  ShieldCheck, Home, LogOut, 
+  Layers, BarChart3, Settings
 } from 'lucide-react';
-import { useRouter } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 import { AdminAuthService, AdminSession } from '../services/adminAuth';
 import { DynamicAdminRouter } from '../services/dynamicAdminRouter';
 import { AdminPortal } from '../components/AdminPortal';
 import { NotFoundPage } from './NotFoundPage';
+import { PageSkeletonLoader } from '../components/PageSkeletonLoader';
 import { soundPlayer } from '../services/sound';
 import { StaffFirstTimeSetupModal } from '../components/admin/StaffFirstTimeSetupModal';
+import { MfaEnrollmentModal } from '../components/admin/MfaEnrollmentModal';
+import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
+import { isProductionEnvironment } from '../services/env';
+import { isSupabaseConfigured } from '../services/supabase';
+import { formatRoleDisplay } from '../services/roles';
 import { AdminUser } from '../types';
 
 interface AdminPageProps {
@@ -23,27 +28,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
   // Route token from prop or current path
   const token = routeToken || DynamicAdminRouter.extractToken(currentPath) || '';
 
-  // Validation state
-  const [routeValidation, setRouteValidation] = useState(() => DynamicAdminRouter.validateRoute(token));
+  // Authentication & route validation state (fail closed behind skeleton while awaiting server gateway check)
+  const [session, setSession] = useState<AdminSession | null>(() => AdminAuthService.getCurrentSession());
+  const [isVerifyingInitialSession, setIsVerifyingInitialSession] = useState<boolean>(() => {
+    const active = AdminAuthService.getCurrentSession();
+    return Boolean(active && AdminAuthService.isAuthenticated() && (isProductionEnvironment() || isSupabaseConfigured()));
+  });
+  const [routeValidation, setRouteValidation] = useState(() => {
+    if (!token) return DynamicAdminRouter.validateRoute('');
+    if (isProductionEnvironment()) {
+      return {
+        isValid: false,
+        token,
+        mode: 'server_edge_function' as const,
+        serverVerified: false,
+      };
+    }
+    return DynamicAdminRouter.validateRoute(token);
+  });
+  const [isVerifyingRoute, setIsVerifyingRoute] = useState<boolean>(() => {
+    const activeSession = AdminAuthService.getCurrentSession();
+    if (activeSession && AdminAuthService.isAuthenticated()) return false;
+    return Boolean(token) && isProductionEnvironment();
+  });
   const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
     const now = new Date();
     return 60 - now.getSeconds();
   });
 
-  // Authentication state
-  const [session, setSession] = useState<AdminSession | null>(() => AdminAuthService.getCurrentSession());
-  const [loginStep, setLoginStep] = useState<'credentials' | 'totp'>('credentials');
-  const [pendingUser, setPendingUser] = useState<AdminUser | null>(null);
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [totpCode, setTotpCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // First-Time Staff Setup State
+  // First-Time Staff Setup & Native MFA Enrollment Modals
   const [firstTimeUser, setFirstTimeUser] = useState<AdminUser | null>(null);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [mfaEnrollmentUser, setMfaEnrollmentUser] = useState<AdminUser | null>(null);
+  const [showMfaEnrollment, setShowMfaEnrollment] = useState(false);
 
   // Security: Prevent search engines from indexing administrative pages
   useEffect(() => {
@@ -73,96 +90,104 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
     };
   }, []);
 
-  // Timer to update second countdown and revalidate route token every second
+  // Authoritatively verify gateway token via Edge Function and maintain IST 1s countdown
   useEffect(() => {
-    if (session && AdminAuthService.isAuthenticated()) return;
+    if (session && AdminAuthService.isAuthenticated() && !isVerifyingInitialSession) return;
+    let isMounted = true;
+
+    const verifyAuthoritative = async () => {
+      const res = await DynamicAdminRouter.validateRouteAuthoritative(token);
+      if (isMounted) {
+        setRouteValidation(res);
+        setIsVerifyingRoute(false);
+      }
+    };
+
+    void verifyAuthoritative();
 
     const interval = setInterval(() => {
       const now = new Date();
       setSecondsRemaining(60 - now.getSeconds());
 
-      // Revalidate if not already authenticated
-      const res = DynamicAdminRouter.validateRoute(token);
-      setRouteValidation(res);
+      if (isProductionEnvironment()) {
+        if (now.getSeconds() === 0) {
+          void verifyAuthoritative();
+        }
+      } else {
+        setRouteValidation(DynamicAdminRouter.validateRoute(token));
+      }
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [token, session]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [token, session, isVerifyingInitialSession]);
 
-  // STEP 1: Validate Email/Phone and Password
-  const handleVerifyCredentials = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-    soundPlayer.playWaterDrop();
+  // Live session check: verify AAL2, server block state, and role/permission freshness
+  useEffect(() => {
+    if (!session) return;
+    let isMounted = true;
 
-    // Verify dynamic route is still valid at the moment of submission
-    const currentValidation = DynamicAdminRouter.validateRoute(token);
-    if (!currentValidation.isValid) {
-      setIsLoading(false);
-      setRouteValidation(currentValidation);
-      return;
-    }
+    const validateActiveSession = async () => {
+      const liveCheck = await AdminAuthService.verifyLiveSession();
+      if (!isMounted) return;
+      setIsVerifyingInitialSession(false);
 
-    const res = AdminAuthService.validateCredentials(identifier.trim(), password);
-    setIsLoading(false);
-
-    if (res.requireFirstLoginSetup && res.user) {
-      setFirstTimeUser(res.user);
-      setShowFirstTimeSetup(true);
-      soundPlayer.playSuccessChime();
-      return;
-    }
-
-    if (res.success && res.user) {
-      setPendingUser(res.user);
-      setLoginStep('totp');
-      setTotpCode('');
-      soundPlayer.playWaterDrop();
-    } else {
-      setError(res.error || 'Invalid credentials. Please verify your email/phone and password.');
-      soundPlayer.playBubblePop();
-    }
-  };
-
-  // STEP 2: Verify Google Authenticator (TOTP) and enter portal
-  const handleVerifyTotp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-    soundPlayer.playWaterDrop();
-
-    if (!pendingUser) return;
-
-    try {
-      const res = await AdminAuthService.verifyTotpAndCreateSession(pendingUser, totpCode.trim());
-      setIsLoading(false);
-
-      if (res.success && res.session) {
-        setSession(res.session);
-        soundPlayer.playSuccessChime();
-      } else {
-        setError(res.error || 'Invalid Google Authenticator code.');
-        soundPlayer.playBubblePop();
+      if (!liveCheck.valid) {
+        AdminAuthService.logout();
+        setSession(null);
+        return;
       }
-    } catch {
-      setIsLoading(false);
-      setError('An unexpected error occurred during 2FA verification. Please try again.');
-      soundPlayer.playBubblePop();
-    }
-  };
+
+      if (
+        liveCheck.session &&
+        (liveCheck.session.role !== session.role ||
+          liveCheck.session.email !== session.email ||
+          liveCheck.session.phone !== session.phone ||
+          JSON.stringify(liveCheck.session.permissions || []) !==
+            JSON.stringify(session.permissions || []))
+      ) {
+        setSession(liveCheck.session);
+      }
+    };
+
+    void validateActiveSession();
+    const handleWindowFocus = () => {
+      void validateActiveSession();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    const interval = setInterval(() => {
+      void validateActiveSession();
+    }, 60000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(interval);
+    };
+  }, [session]);
 
   const handleLogout = () => {
     soundPlayer.playBubblePop();
     AdminAuthService.logout();
     setSession(null);
-    setPassword('');
+    setIsVerifyingInitialSession(false);
+    setFirstTimeUser(null);
+    setShowFirstTimeSetup(false);
+    setMfaEnrollmentUser(null);
+    setShowMfaEnrollment(false);
     navigate('/');
   };
 
   // -------------------------------------------------------------
   // 1. AUTHENTICATED STATE: Render full Admin Operations Console
+  // (Fail closed behind PageSkeletonLoader until live session is verified)
   // -------------------------------------------------------------
+  if (isVerifyingInitialSession) {
+    return <PageSkeletonLoader path={currentPath} />;
+  }
+
   if (session && AdminAuthService.isAuthenticated()) {
     return (
       <div className="min-h-screen bg-[#102B46] text-[#FFF9EF] font-manrope flex flex-col">
@@ -188,7 +213,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-semibold text-white">{session.name}</span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#C99B43]/20 text-[#C99B43]">
-                {session.role}
+                {formatRoleDisplay(session.role)}
               </span>
             </div>
 
@@ -226,6 +251,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
         </div>
       </div>
     );
+  }
+
+  if (isVerifyingRoute) {
+    return <PageSkeletonLoader path={currentPath} />;
   }
 
   // -------------------------------------------------------------
@@ -365,242 +394,56 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
         {/* Shifted inwards (closer to text) to remove large gap      */}
         {/* Fits 100vh on laptop screen with zero drag/scroll needed */}
         {/* ======================================================== */}
-        <section className="w-full lg:w-[38%] xl:w-[36%] flex items-center justify-center lg:justify-start lg:pl-6 xl:pl-10 py-2 lg:py-0">
+        <section className="w-full lg:w-[38%] xl:w-[36%] flex flex-col items-center justify-center lg:justify-start lg:pl-6 xl:pl-10 py-2 lg:py-0">
           
-          <div className="w-full max-w-[390px] sm:max-w-[410px] bg-[#FAF7EE] border border-[#E2D5BE] rounded-[24px] sm:rounded-[28px] p-5 sm:p-6 md:p-6 shadow-[0_20px_45px_rgba(18,63,45,0.08)] relative">
-            
-            {loginStep === 'credentials' ? (
-              <>
-                {/* Small Golden Badge (Restricted Administrative Access) */}
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[#D4AF37]/50 bg-[#F3ECE0] text-[9.5px] sm:text-[10px] font-bold tracking-wider text-[#8B6F38] uppercase mb-2 shadow-2xs">
-                  <Lock className="w-2.5 h-2.5 text-[#8B6F38]" strokeWidth={2.2} />
-                  <span>RESTRICTED ADMINISTRATIVE ACCESS</span>
-                </div>
-
-                {/* Main Heading & Subtitle */}
-                <h2 className="text-2xl sm:text-[26px] font-playfair font-bold text-[#123F2D] tracking-tight leading-tight">
-                  Welcome Back
-                </h2>
-                <p className="text-[11px] sm:text-xs text-[#687764] mt-0.5 font-medium">
-                  Harit Jal Operations Portal
-                </p>
-
-                {/* IST ACCESS INDICATOR */}
-                <div className="mt-2.5 p-2 px-3 rounded-full bg-[#E8F3EB] border border-[#C5E0CC] flex items-center justify-between text-[11px] text-[#123F2D] shadow-2xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse shrink-0" />
-                    <span className="font-semibold text-[11px] text-[#123F2D]">
-                      IST Access Window Active
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[#35432D] font-medium text-[11px]">
-                    <span className="text-[#C5E0CC] text-xs font-light">|</span>
-                    <span className="font-mono font-bold text-[10.5px] text-[#35432D]">
-                      {minutesFormatted}:{secondsFormatted} remaining
-                    </span>
-                  </div>
-                </div>
-
-                {/* Error Banner */}
-                {error && (
-                  <div className="mt-2.5 p-2 px-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-1.5 shadow-2xs animate-shake">
-                    <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {/* STEP 1: Credentials Form (ID & Password Only - NO TOTP field here) */}
-                <form onSubmit={handleVerifyCredentials} className="space-y-2.5 sm:space-y-3 mt-3">
-                  
-                  {/* Field 1: Staff Email Address OR Mobile Number */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#123F2D] mb-1 font-manrope flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Mail className="w-3 h-3 text-[#123F2D]" strokeWidth={2} />
-                        <span>Staff Email or Mobile Number</span>
-                      </span>
-                      <span className="text-[10px] text-[#52652D] font-normal">Email / +91</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="name@haritjal.in or +91 98765..."
-                      className="w-full px-3.5 py-2 sm:py-2.5 rounded-xl bg-[#FAF7EE]/70 border border-[#D9CEBA] text-sm text-[#123F2D] placeholder-[#A09A8E] font-medium focus:outline-none focus:ring-1 focus:ring-[#C99A3C] focus:border-[#C99A3C] transition"
-                      autoComplete="username"
-                    />
-                  </div>
-
-                  {/* Field 2: Administrative Password */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#123F2D] mb-1 font-manrope flex items-center gap-1.5">
-                      <Lock className="w-3 h-3 text-[#123F2D]" strokeWidth={2} />
-                      <span>Administrative Password</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        className="w-full px-3.5 pr-10 py-2 sm:py-2.5 rounded-xl bg-[#FAF7EE]/70 border border-[#D9CEBA] text-sm text-[#123F2D] placeholder-[#A09A8E] font-medium focus:outline-none focus:ring-1 focus:ring-[#C99A3C] focus:border-[#C99A3C] transition"
-                        autoComplete="current-password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(prev => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#707D6B] hover:text-[#123F2D] transition cursor-pointer p-1"
-                        title={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* STEP 1 BUTTON: Verify Credentials & Continue */}
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-2.5 sm:py-3 px-5 rounded-full bg-[#0F3826] hover:bg-[#082015] text-white font-bold text-xs sm:text-[13px] tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] disabled:opacity-60"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-white" />
-                    <span>
-                      {isLoading ? 'Verifying Credentials...' : 'Verify Credentials & Continue →'}
-                    </span>
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                {/* STEP 2: Google Authenticator TOTP Screen */}
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-emerald-500/40 bg-emerald-50 text-[9.5px] sm:text-[10px] font-bold tracking-wider text-emerald-800 uppercase mb-2 shadow-2xs">
-                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-700" strokeWidth={2.2} />
-                  <span>TWO-FACTOR AUTHENTICATION • STEP 2 OF 2</span>
-                </div>
-
-                {/* Main Heading & Subtitle */}
-                <h2 className="text-2xl sm:text-[26px] font-playfair font-bold text-[#123F2D] tracking-tight leading-tight">
-                  Google Authenticator
-                </h2>
-                <p className="text-[11px] sm:text-xs text-[#687764] mt-0.5 font-medium">
-                  Enter 6-digit TOTP code generated on your device
-                </p>
-
-                {/* Verified Identity Badge */}
-                <div className="mt-2.5 p-2 px-3 rounded-xl bg-[#E8F3EB] border border-[#C5E0CC] flex items-center justify-between text-xs text-[#123F2D] shadow-2xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-[#123F2D] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-[#123F2D] truncate text-[11.5px]">{pendingUser?.name}</p>
-                      <p className="text-[10px] text-[#52652D] truncate">{pendingUser?.email || pendingUser?.phone}</p>
-                    </div>
-                  </div>
-                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#123F2D]/10 text-[#123F2D] shrink-0 border border-[#123F2D]/20">
-                    {pendingUser?.designation || pendingUser?.role}
-                  </span>
-                </div>
-
-                {/* IST ACCESS INDICATOR */}
-                <div className="mt-2 p-1.5 px-3 rounded-full bg-[#FAF7EE] border border-[#E2D5BE] flex items-center justify-between text-[10.5px] text-[#123F2D]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse shrink-0" />
-                    <span className="font-semibold text-[#123F2D]">
-                      IST Window Active
-                    </span>
-                  </div>
-                  <div className="font-mono font-bold text-[10px] text-[#35432D]">
-                    {minutesFormatted}:{secondsFormatted} remaining
-                  </div>
-                </div>
-
-                {/* Error Banner */}
-                {error && (
-                  <div className="mt-2.5 p-2 px-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-1.5 shadow-2xs animate-shake">
-                    <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {/* STEP 2 FORM: 6-Digit TOTP Input */}
-                <form onSubmit={handleVerifyTotp} className="space-y-3 mt-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#123F2D] mb-1 font-manrope flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Smartphone className="w-3 h-3 text-[#123F2D]" strokeWidth={2} />
-                        <span>Google Authenticator (TOTP) *</span>
-                      </span>
-                      <span className="text-[10px] text-[#52652D] font-bold">Mandatory 2FA</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoFocus
-                      maxLength={6}
-                      value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••••"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/90 border border-[#D9CEBA] text-xl font-mono font-bold tracking-[0.4em] text-center text-[#123F2D] placeholder-[#A09A8E] focus:outline-none focus:ring-2 focus:ring-[#123F2D] focus:border-[#123F2D] transition shadow-inner"
-                    />
-                    <span className="text-[10px] text-[#707D6B] block mt-1 text-center">
-                      Open Google Authenticator on your mobile to view your 6-digit code.
-                    </span>
-                  </div>
-
-                  {/* Primary Button */}
-                  <button
-                    type="submit"
-                    disabled={isLoading || totpCode.length !== 6}
-                    className="w-full py-2.5 sm:py-3 px-5 rounded-full bg-[#0F3826] hover:bg-[#082015] text-white font-bold text-xs sm:text-[13px] tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] disabled:opacity-50"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                    <span>
-                      {isLoading ? 'Verifying 2FA Credentials...' : 'Authenticate & Enter Portal →'}
-                    </span>
-                  </button>
-
-                  {/* Back to Step 1 Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundPlayer.playBubblePop();
-                      setLoginStep('credentials');
-                      setTotpCode('');
-                      setError(null);
-                    }}
-                    className="w-full py-1 text-[11px] font-semibold text-[#687764] hover:text-[#123F2D] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3 h-3" />
-                    <span>Back to Password Login</span>
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* SECURITY FOOTER INSIDE LOGIN CARD */}
-            <div className="w-full h-px bg-[#E8DFCF] mt-3 sm:mt-3.5 mb-2.5" />
-            
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#707D6B]">
-              <ShieldCheck className="w-3 h-3 text-[#707D6B]" />
-              <span>Protected by Dynamic IST Route Verification</span>
+          {/* IST ACCESS INDICATOR */}
+          <div className="w-full max-w-[420px] mb-3 p-2 px-3 rounded-full bg-[#E8F3EB] border border-[#C5E0CC] flex items-center justify-between text-[11px] text-[#123F2D] shadow-2xs">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse shrink-0" />
+              <span className="font-semibold text-[11px] text-[#123F2D]">
+                IST Access Window Active
+              </span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                navigate('/');
-              }}
-              className="text-[11px] font-semibold text-[#123F2D] hover:underline transition flex items-center justify-center gap-1.5 mx-auto mt-2 cursor-pointer"
-            >
-              <Home className="w-3.5 h-3.5 text-[#123F2D]" />
-              <span>Return to Public Website</span>
-            </button>
-
+            <div className="flex items-center gap-1.5 text-[#35432D] font-medium text-[11px]">
+              <span className="text-[#C5E0CC] text-xs font-light">|</span>
+              <span className="font-mono font-bold text-[10.5px] text-[#35432D]">
+                {minutesFormatted}:{secondsFormatted} remaining
+              </span>
+            </div>
           </div>
+
+          {/* UNIFIED PREMIUM LOGIN CARD (ADMIN & STAFF ACCESS) */}
+          <UnifiedLoginCard
+            initialAccountType="admin"
+            allowedAccountTypes={['admin', 'staff']}
+            onSuccess={(result) => {
+              if (result.adminSession) {
+                setSession(result.adminSession);
+                soundPlayer.playSuccessChime();
+              }
+            }}
+            onRequireFirstTimeSetup={(user) => {
+              setFirstTimeUser(user);
+              setShowFirstTimeSetup(true);
+            }}
+            onRequireMfaEnrollment={(user) => {
+              setMfaEnrollmentUser(user);
+              setShowMfaEnrollment(true);
+            }}
+          />
+
+          {/* Return to Public Website */}
+          <button
+            type="button"
+            onClick={() => {
+              soundPlayer.playWaterDrop();
+              navigate('/');
+            }}
+            className="text-xs font-semibold text-[#123F2D] hover:underline transition flex items-center justify-center gap-1.5 mx-auto mt-4 cursor-pointer"
+          >
+            <Home className="w-3.5 h-3.5 text-[#123F2D]" />
+            <span>Return to Public Website</span>
+          </button>
 
         </section>
 
@@ -617,8 +460,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
             setSession(newSession);
           }}
           onCancel={() => {
+            AdminAuthService.logout();
             setShowFirstTimeSetup(false);
             setFirstTimeUser(null);
+          }}
+        />
+      )}
+
+      {/* Existing Staff & Root Super Admin Native MFA Enrollment Modal */}
+      {mfaEnrollmentUser && (
+        <MfaEnrollmentModal
+          isOpen={showMfaEnrollment}
+          user={mfaEnrollmentUser}
+          onSuccess={(newSession) => {
+            setShowMfaEnrollment(false);
+            setMfaEnrollmentUser(null);
+            setSession(newSession);
+          }}
+          onCancel={() => {
+            AdminAuthService.logout();
+            setShowMfaEnrollment(false);
+            setMfaEnrollmentUser(null);
           }}
         />
       )}

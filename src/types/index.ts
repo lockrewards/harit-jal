@@ -13,6 +13,7 @@ export interface CallBooking {
   preferredDateTime: string;
   notes?: string;
   status: 'New' | 'Call Scheduled' | 'Sample Dispatched' | 'Active Client' | 'Follow Up';
+  source?: 'website_form' | 'mascot' | 'contact_page';
   assignedTo: string;
   createdAt: string;
   syncedToGoogleSheets: boolean;
@@ -35,28 +36,63 @@ export interface VisitorRecord {
   lastActive: string;
 }
 
+export type StaffRole =
+  | 'admin'
+  | 'staff'
+  | 'Staff'
+  | 'Sales Manager'
+  | 'sales_manager'
+  | 'Operations Lead'
+  | 'operations_lead'
+  | 'Label Designer'
+  | 'label_designer';
+
 export interface AdminUser {
   id: string;
   name: string;
   email: string;
   phone?: string;
   designation?: string;
-  role: 'Super Admin' | 'Sales Manager' | 'Operations Lead' | 'Label Designer' | 'Staff';
+  role: StaffRole;
   permissions?: string[];
   status: 'Active' | 'Blocked' | 'On Leave';
   inquiriesAssigned: number;
+  isRootSuperAdmin?: boolean;
   isFirstLogin?: boolean;
-  temporaryPassword?: string;
+  temporaryPassword?: string; // Legacy plaintext (deprecated, never stored in Supabase/production)
+  temporaryPasswordHash?: string; // Salted PBKDF2 hash of temporary password (dev offline fallback only)
+  temporaryPasswordExpiresAt?: number; // Expiration timestamp (72h)
+  passwordHash?: string;
   totpSecret?: string;
   totpEnabled?: boolean;
   emailPhoneChangesCount?: number;
   createdAt?: string;
 }
 
+export interface StaffAuditLog {
+  id: string;
+  action:
+    | 'CREATE_STAFF'
+    | 'BLOCK_STAFF'
+    | 'UNBLOCK_STAFF'
+    | 'DELETE_STAFF'
+    | 'FIRST_LOGIN_COMPLETE'
+    | 'MFA_ENROLLMENT_COMPLETE'
+    | 'RESET_STAFF_MFA'
+    | 'REISSUE_STAFF_INVITE'
+    | 'UPDATE_STAFF_PERMISSIONS'
+    | 'UPDATE_ADMIN_PROFILE'
+    | 'BREAK_GLASS_RECOVERY';
+  targetUserId: string;
+  targetUserEmail: string;
+  performedBy: string;
+  timestamp: string;
+  details: string;
+}
+
 export interface GoogleSheetsConfig {
   sheetId: string;
   sheetName: string;
-  webhookUrl: string;
   autoSync: boolean;
   lastSyncTime?: string;
 }
@@ -73,15 +109,18 @@ export interface BottleMockupConfig {
 }
 
 export interface CustomerAccount {
-  id: string;
+  id: string; // Supabase Auth UUID (auth.users.id)
   restaurantName: string;
   ownerName: string;
   email: string;
   phone: string;
   city: string;
-  password?: string;
   createdAt: string;
   emailPhoneChangesCount?: number;
+  /** @deprecated Passwords are managed exclusively by Supabase Auth (auth.users). Never store passwords in CustomerAccount. */
+  password?: string;
+  /** @deprecated Password hashes are managed exclusively by Supabase Auth (auth.users). Never store hashes in CustomerAccount. */
+  passwordHash?: string;
 }
 
 export interface CustomerOrder {

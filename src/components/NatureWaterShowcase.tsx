@@ -1,5 +1,5 @@
 import React from 'react';
-import { Waves, Mountain, Droplets, ShieldCheck } from 'lucide-react';
+import { Waves, Droplets } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 export const NatureWaterShowcase: React.FC = () => {

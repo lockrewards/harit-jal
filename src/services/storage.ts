@@ -1,4 +1,6 @@
-import { AdminUser, CallBooking, GoogleSheetsConfig, VisitorRecord } from '../types';
+import { AdminUser, CallBooking, GoogleSheetsConfig, VisitorRecord, StaffAuditLog } from '../types';
+import { isProductionEnvironment } from './env';
+import { normalizeStaffRole, ROOT_SUPER_ADMIN_IDENTITY } from './roles';
 
 const STORAGE_KEYS = {
   BOOKINGS: 'harit_jal_bookings_v1',
@@ -7,69 +9,75 @@ const STORAGE_KEYS = {
   USERS: 'harit_jal_admin_users_v1',
   SHEETS_CONFIG: 'harit_jal_sheets_config_v1',
   EMAIL_DISPATCH_LOGS: 'harit_jal_email_logs_v1',
+  STAFF_AUDIT_LOGS: 'harit_jal_staff_audit_logs_v1',
 };
 
-// Initial Seed Data for Instant Demonstration
-const INITIAL_USERS: AdminUser[] = [
+// Development-only offline roster directory (ZERO plaintext passwords, ZERO password hashes, ZERO TOTP secrets)
+export const DEV_SEED_USERS: AdminUser[] = [
   {
-    id: 'usr-1',
-    name: 'Vikramaditya Chauhan',
-    email: 'vikram@haritjal.in',
-    phone: '+91 98765 43210',
-    designation: 'Founder & Super Admin',
-    role: 'Super Admin',
+    id: '00000000-0000-4000-8000-000000000001',
+    name: ROOT_SUPER_ADMIN_IDENTITY.name,
+    email: ROOT_SUPER_ADMIN_IDENTITY.email,
+    phone: ROOT_SUPER_ADMIN_IDENTITY.phone,
+    designation: ROOT_SUPER_ADMIN_IDENTITY.designation,
+    role: ROOT_SUPER_ADMIN_IDENTITY.role,
     permissions: ['all', 'leads', 'orders', 'inventory', 'pricing', 'staff', 'audit_logs'],
     status: 'Active',
-    inquiriesAssigned: 4,
-    totpSecret: 'JBSWY3DPEHPK3PXP',
+    isRootSuperAdmin: true,
+    inquiriesAssigned: 0,
     totpEnabled: true,
+    isFirstLogin: false,
     emailPhoneChangesCount: 0,
   },
   {
-    id: 'usr-2',
+    id: '00000000-0000-4000-8000-000000000002',
     name: 'Pooja Verma',
     email: 'pooja.sales@haritjal.in',
-    phone: '+91 98112 34567',
+    phone: '+91 98765 43210',
     designation: 'Senior Sales Head',
-    role: 'Sales Manager',
+    role: 'sales_manager',
     permissions: ['leads', 'orders'],
     status: 'Active',
-    inquiriesAssigned: 8,
-    totpSecret: 'KRSXG5CTMVRXEZLU',
+    isRootSuperAdmin: false,
+    inquiriesAssigned: 0,
     totpEnabled: true,
+    isFirstLogin: false,
     emailPhoneChangesCount: 0,
   },
   {
-    id: 'usr-3',
+    id: '00000000-0000-4000-8000-000000000003',
     name: 'Rohit K. Rawat',
     email: 'rohit.ops@haritjal.in',
     phone: '+91 98223 45678',
     designation: 'Fulfillment & Logistics Lead',
-    role: 'Operations Lead',
+    role: 'operations_lead',
     permissions: ['orders', 'inventory'],
     status: 'Active',
-    inquiriesAssigned: 3,
-    totpSecret: 'MZXXE33BOMQWO2LH',
+    isRootSuperAdmin: false,
+    inquiriesAssigned: 0,
     totpEnabled: true,
+    isFirstLogin: false,
     emailPhoneChangesCount: 0,
   },
   {
-    id: 'usr-4',
+    id: '00000000-0000-4000-8000-000000000004',
     name: 'Ananya Sen',
     email: 'ananya.design@haritjal.in',
     phone: '+91 98334 56789',
     designation: 'Bespoke Label Art Director',
-    role: 'Label Designer',
+    role: 'label_designer',
     permissions: ['leads'],
     status: 'Active',
-    inquiriesAssigned: 5,
-    totpSecret: 'GEZDGNBVGY3TQOJQ',
+    isRootSuperAdmin: false,
+    inquiriesAssigned: 0,
     totpEnabled: true,
+    isFirstLogin: false,
     emailPhoneChangesCount: 0,
   },
 ];
 
-const INITIAL_BOOKINGS: CallBooking[] = [
+// Development-only demo bookings (never seeded when isProductionEnvironment() === true)
+const DEV_SEED_BOOKINGS: CallBooking[] = [
   {
     id: 'HJ-2026-081',
     restaurantName: 'Karan The Dhaba',
@@ -92,7 +100,7 @@ const INITIAL_BOOKINGS: CallBooking[] = [
     id: 'HJ-2026-082',
     restaurantName: 'The Royal Darbar & Banquets',
     ownerName: 'Rajeev Singhania',
-    phone: '+91 98112 34567',
+    phone: '+91 98765 43210',
     email: 'banquets@royal-darbar.in',
     city: 'Jaipur, Rajasthan',
     bottleSize: '750ml_glass',
@@ -102,7 +110,7 @@ const INITIAL_BOOKINGS: CallBooking[] = [
     preferredDateTime: '2026-11-08 at 11:30 AM',
     notes: 'Seeking luxury glass decanters with gold foil crest for wedding parties and VIP dining.',
     status: 'New',
-    assignedTo: 'Vikramaditya Chauhan',
+    assignedTo: ROOT_SUPER_ADMIN_IDENTITY.name,
     createdAt: '2026-11-07 18:45',
     syncedToGoogleSheets: true,
   },
@@ -126,7 +134,8 @@ const INITIAL_BOOKINGS: CallBooking[] = [
   },
 ];
 
-const INITIAL_VISITORS: VisitorRecord[] = [
+// Development-only demo visitors (never seeded when isProductionEnvironment() === true)
+const DEV_SEED_VISITORS: VisitorRecord[] = [
   {
     visitorId: 'vis-dhaba-99',
     visitCount: 6,
@@ -153,19 +162,6 @@ const INITIAL_VISITORS: VisitorRecord[] = [
     city: 'Jaipur',
     lastActive: '1 hr ago',
   },
-  {
-    visitorId: 'vis-bengaluru-88',
-    visitCount: 4,
-    firstVisit: '2026-11-04 12:20',
-    lastVisit: '2026-11-07 19:30',
-    pagesViewed: ['Home', 'Supply Roadmap', 'Eco Sustainability'],
-    associatedEmail: 'aniket@smokeandhops.in',
-    associatedRestaurant: 'Smoke & Hops Brewery',
-    isRegular: true,
-    device: 'Chrome / Windows',
-    city: 'Bengaluru',
-    lastActive: '45 mins ago',
-  },
 ];
 
 export interface EmailLog {
@@ -175,6 +171,7 @@ export interface EmailLog {
   sentAt: string;
   content: string;
   type: 'admin_lead_alert' | 'client_confirmation' | 'otp_verification';
+  status?: string;
 }
 
 export const StorageService = {
@@ -182,28 +179,36 @@ export const StorageService = {
   getBookings(): CallBooking[] {
     const raw = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(INITIAL_BOOKINGS));
-      return INITIAL_BOOKINGS;
+      if (isProductionEnvironment()) {
+        return [];
+      }
+      localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(DEV_SEED_BOOKINGS));
+      return DEV_SEED_BOOKINGS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_BOOKINGS;
+      return isProductionEnvironment() ? [] : DEV_SEED_BOOKINGS;
     }
+  },
+
+  setBookings(bookings: CallBooking[]): CallBooking[] {
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(bookings));
+    return bookings;
   },
 
   addBooking(booking: Omit<CallBooking, 'id' | 'createdAt' | 'status' | 'assignedTo' | 'syncedToGoogleSheets'>): CallBooking {
     const all = this.getBookings();
     const newId = `HJ-2026-${String(all.length + 84).padStart(3, '0')}`;
     const users = this.getUsers();
-    // Round-robin or default sales lead assignment
-    const salesUser = users.find(u => u.role === 'Sales Manager') || users[0];
+    const salesUser = users.find((u) => normalizeStaffRole(u.role) === 'sales_manager') || users[0];
 
     const newRecord: CallBooking = {
       ...booking,
       id: newId,
       status: 'New',
-      assignedTo: salesUser.name,
+      assignedTo: salesUser?.name || 'Harit Jal Sales Desk',
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       syncedToGoogleSheets: true,
     };
@@ -211,10 +216,7 @@ export const StorageService = {
     all.unshift(newRecord);
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(all));
 
-    // Update current visitor association
     this.associateCurrentVisitor(booking.email, booking.restaurantName);
-
-    // Simulate Admin Email Dispatch
     this.dispatchAdminEmailNotification(newRecord);
 
     return newRecord;
@@ -222,7 +224,7 @@ export const StorageService = {
 
   updateBookingStatus(id: string, status: CallBooking['status'], assignedTo?: string) {
     const all = this.getBookings();
-    const updated = all.map(b => {
+    const updated = all.map((b) => {
       if (b.id === id) {
         const isAdminApproved = status === 'Call Scheduled' || status === 'Active Client' || b.adminApproved;
         return {
@@ -239,9 +241,24 @@ export const StorageService = {
     return updated;
   },
 
+  updateBookingDetails(id: string, updates: Partial<CallBooking>) {
+    const all = this.getBookings();
+    const updated = all.map((b) => {
+      if (b.id === id) {
+        return {
+          ...b,
+          ...updates,
+        };
+      }
+      return b;
+    });
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
+    return updated;
+  },
+
   approveBooking(id: string, approvedBy: string = 'Super Admin') {
     const all = this.getBookings();
-    const updated = all.map(b => {
+    const updated = all.map((b) => {
       if (b.id === id) {
         return {
           ...b,
@@ -261,13 +278,17 @@ export const StorageService = {
   getVisitors(): VisitorRecord[] {
     const raw = localStorage.getItem(STORAGE_KEYS.VISITORS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.VISITORS, JSON.stringify(INITIAL_VISITORS));
-      return INITIAL_VISITORS;
+      if (isProductionEnvironment()) {
+        return [];
+      }
+      localStorage.setItem(STORAGE_KEYS.VISITORS, JSON.stringify(DEV_SEED_VISITORS));
+      return DEV_SEED_VISITORS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_VISITORS;
+      return isProductionEnvironment() ? [] : DEV_SEED_VISITORS;
     }
   },
 
@@ -276,10 +297,9 @@ export const StorageService = {
     const visitors = this.getVisitors();
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
-    let currentRecord = visitors.find(v => v.visitorId === visitorId);
+    let currentRecord = visitors.find((v) => v.visitorId === visitorId);
 
     if (!currentRecord) {
-      // First time visiting
       visitorId = `vis-${Math.random().toString(36).substring(2, 8)}`;
       localStorage.setItem(STORAGE_KEYS.CURRENT_VISITOR, visitorId);
 
@@ -297,7 +317,6 @@ export const StorageService = {
       };
       visitors.unshift(currentRecord);
     } else {
-      // Returning visitor!
       currentRecord.visitCount += 1;
       currentRecord.lastVisit = now;
       currentRecord.lastActive = 'Active now';
@@ -318,13 +337,13 @@ export const StorageService = {
     if (!visitorId) return;
 
     const visitors = this.getVisitors();
-    const updated = visitors.map(v => {
+    const updated = visitors.map((v) => {
       if (v.visitorId === visitorId) {
         return {
           ...v,
           associatedEmail: email,
           ...(restaurantName ? { associatedRestaurant: restaurantName } : {}),
-          isRegular: true, // Anyone who enters their business info is marked as a verified regular lead
+          isRegular: true,
         };
       }
       return v;
@@ -336,21 +355,30 @@ export const StorageService = {
   getUsers(): AdminUser[] {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
-      return INITIAL_USERS;
+      if (isProductionEnvironment()) {
+        return [];
+      }
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEV_SEED_USERS));
+      return DEV_SEED_USERS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_USERS;
+      return isProductionEnvironment() ? [] : DEV_SEED_USERS;
     }
   },
 
-  addUser(user: Omit<AdminUser, 'id' | 'inquiriesAssigned'>): AdminUser {
+  setUsers(users: AdminUser[]): AdminUser[] {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    return users;
+  },
+
+  addUser(user: Omit<AdminUser, 'id' | 'inquiriesAssigned'> & { id?: string }): AdminUser {
     const all = this.getUsers();
     const newUser: AdminUser = {
       ...user,
-      id: `usr-${Date.now().toString().slice(-4)}`,
+      id: user.id || `usr-${Date.now().toString().slice(-4)}`,
       inquiriesAssigned: 0,
     };
     all.push(newUser);
@@ -359,16 +387,22 @@ export const StorageService = {
   },
 
   deleteUser(id: string) {
-    const all = this.getUsers().filter(u => u.id !== id);
+    const all = this.getUsers().filter((u) => u.id !== id);
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(all));
     return all;
   },
 
   updateUser(id: string, updates: Partial<AdminUser>): AdminUser | null {
     const all = this.getUsers();
-    const idx = all.findIndex(u => u.id === id);
+    const idx = all.findIndex((u) => u.id === id);
     if (idx === -1) return null;
     all[idx] = { ...all[idx], ...updates };
+    // Purge keys explicitly updated to undefined (e.g. single-use credentials)
+    for (const key of Object.keys(updates)) {
+      if ((updates as Record<string, unknown>)[key] === undefined) {
+        delete (all[idx] as unknown as Record<string, unknown>)[key];
+      }
+    }
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(all));
     return all[idx];
   },
@@ -382,34 +416,36 @@ export const StorageService = {
   },
 
   updateAdminProfile(
-    adminId: string, 
-    newEmail?: string, 
+    adminId: string,
+    newEmail?: string,
     newPhone?: string
   ): { success: boolean; error?: string; user?: AdminUser } {
     const all = this.getUsers();
-    const user = all.find(u => u.id === adminId);
+    const user = all.find((u) => u.id === adminId);
     if (!user) {
       return { success: false, error: 'Admin account not found.' };
     }
 
-    // Only Super Admin can change their credentials
-    if (user.role !== 'Super Admin') {
-      return { success: false, error: 'Staff members cannot change their email or phone. Only Super Admin can update credentials.' };
+    if (user.role !== 'admin' && !user.isRootSuperAdmin) {
+      return { success: false, error: 'Staff members cannot change their email or phone. Only Admin can update credentials.' };
+    }
+
+    if (user.isRootSuperAdmin === true) {
+      return { success: false, error: 'Root Admin email address and mobile number are permanently bound and immutable.' };
     }
 
     const currentCount = user.emailPhoneChangesCount || 0;
     if (currentCount >= 5) {
-      return { 
-        success: false, 
-        error: 'Lifetime modification limit reached. You have already changed your email/mobile number 5 times.' 
+      return {
+        success: false,
+        error: 'Lifetime modification limit reached. You have already changed your email/mobile number 5 times.',
       };
     }
 
     const cleanEmail = newEmail ? newEmail.trim().toLowerCase() : user.email;
     const cleanPhone = newPhone ? newPhone.trim() : user.phone;
 
-    // Check for collisions
-    if (cleanEmail !== user.email && all.some(u => u.id !== adminId && u.email.toLowerCase() === cleanEmail)) {
+    if (cleanEmail !== user.email && all.some((u) => u.id !== adminId && u.email.toLowerCase() === cleanEmail)) {
       return { success: false, error: 'This email is already assigned to another staff member.' };
     }
 
@@ -427,7 +463,6 @@ export const StorageService = {
     const defaultConfig: GoogleSheetsConfig = {
       sheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
       sheetName: 'HaritJal_Inquiries_Master',
-      webhookUrl: 'https://script.google.com/macros/s/AKfycbz_HaritJal_LiveSync/exec',
       autoSync: true,
       lastSyncTime: 'Just now',
     };
@@ -436,30 +471,55 @@ export const StorageService = {
       return defaultConfig;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const clean: GoogleSheetsConfig = {
+        sheetId: typeof parsed.sheetId === 'string' && parsed.sheetId.trim() ? parsed.sheetId : defaultConfig.sheetId,
+        sheetName: typeof parsed.sheetName === 'string' && parsed.sheetName.trim() ? parsed.sheetName : defaultConfig.sheetName,
+        autoSync: typeof parsed.autoSync === 'boolean' ? parsed.autoSync : defaultConfig.autoSync,
+        lastSyncTime: typeof parsed.lastSyncTime === 'string' ? parsed.lastSyncTime : defaultConfig.lastSyncTime,
+      };
+      if ('webhookUrl' in parsed) {
+        localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(clean));
+      }
+      return clean;
     } catch {
       return defaultConfig;
     }
   },
 
   saveSheetsConfig(config: GoogleSheetsConfig) {
-    localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(config));
+    const clean: GoogleSheetsConfig = {
+      sheetId: config.sheetId,
+      sheetName: config.sheetName,
+      autoSync: config.autoSync,
+      lastSyncTime: config.lastSyncTime,
+    };
+    localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(clean));
   },
 
   dispatchAdminEmailNotification(booking: CallBooking) {
     const logsRaw = localStorage.getItem(STORAGE_KEYS.EMAIL_DISPATCH_LOGS);
     const logs: EmailLog[] = logsRaw ? JSON.parse(logsRaw) : [];
 
+    const channelLabel = booking.source === 'mascot'
+      ? 'Mascot (Neer AI Chat)'
+      : booking.source === 'contact_page'
+      ? 'Website Form (Contact Page)'
+      : 'Website Form (Consultation Modal)';
+    const channelTag = booking.source === 'mascot' ? 'Mascot (Neer AI)' : 'Website Form';
+
     const newLog: EmailLog = {
       id: `mail-${Date.now()}`,
       recipient: 'info@haritjal.in',
-      subject: `🚨 [URGENT NEW CALL BOOKED] ${booking.restaurantName} (${booking.city})`,
+      subject: `🚨 [NEW ENQUIRY via ${channelTag}] ${booking.restaurantName} (${booking.city})`,
       sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       type: 'admin_lead_alert',
+      status: 'Dispatched',
       content: `Hello Harit Jal Operations Team,
 
-A new high-value store inquiry was just booked on haritjal.in!
+A new customer inquiry has been received.
 
+• Channel / Source: ${channelLabel}
 • Restaurant Name: ${booking.restaurantName}
 • Owner / Decision Maker: ${booking.ownerName}
 • Direct Phone: ${booking.phone}
@@ -496,6 +556,7 @@ Action: Sales representative assigned: ${booking.assignedTo}.`,
       subject: entry.subject,
       sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       type: entry.type || 'otp_verification',
+      status: entry.status || 'Dispatched',
       content: entry.content || entry.body || '',
     };
 
@@ -506,6 +567,41 @@ Action: Sales representative assigned: ${booking.assignedTo}.`,
 
   getEmailLogs(): EmailLog[] {
     const logsRaw = localStorage.getItem(STORAGE_KEYS.EMAIL_DISPATCH_LOGS);
+    return logsRaw ? JSON.parse(logsRaw) : [];
+  },
+
+  /**
+   * Appends an immutable audit log entry for administrative staff management actions
+   */
+  addStaffAuditLog(entry: Omit<StaffAuditLog, 'id' | 'timestamp'>): StaffAuditLog {
+    const logsRaw = localStorage.getItem(STORAGE_KEYS.STAFF_AUDIT_LOGS);
+    const logs: StaffAuditLog[] = logsRaw ? JSON.parse(logsRaw) : [];
+
+    const newLog: StaffAuditLog = {
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      action: entry.action,
+      targetUserId: entry.targetUserId,
+      targetUserEmail: entry.targetUserEmail,
+      performedBy: entry.performedBy,
+      details: entry.details,
+      timestamp: new Date().toISOString(),
+    };
+
+    logs.unshift(newLog);
+    localStorage.setItem(STORAGE_KEYS.STAFF_AUDIT_LOGS, JSON.stringify(logs.slice(0, 100)));
+    return newLog;
+  },
+
+  setStaffAuditLogs(logs: StaffAuditLog[]): StaffAuditLog[] {
+    localStorage.setItem(STORAGE_KEYS.STAFF_AUDIT_LOGS, JSON.stringify(logs.slice(0, 100)));
+    return logs;
+  },
+
+  /**
+   * Retrieves administrative staff audit trail
+   */
+  getStaffAuditLogs(): StaffAuditLog[] {
+    const logsRaw = localStorage.getItem(STORAGE_KEYS.STAFF_AUDIT_LOGS);
     return logsRaw ? JSON.parse(logsRaw) : [];
   },
 
@@ -527,7 +623,7 @@ Action: Sales representative assigned: ${booking.assignedTo}.`,
       'Date Submitted',
     ];
 
-    const rows = bookings.map(b => [
+    const rows = bookings.map((b) => [
       b.id,
       `"${b.restaurantName}"`,
       `"${b.ownerName}"`,
@@ -542,7 +638,6 @@ Action: Sales representative assigned: ${booking.assignedTo}.`,
       b.createdAt,
     ]);
 
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
   },
 };
-

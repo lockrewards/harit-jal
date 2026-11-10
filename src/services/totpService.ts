@@ -12,13 +12,11 @@ export const TotpService = {
    */
   generateSecret(length: number = 16): string {
     const randomBytes = new Uint8Array(length);
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-      crypto.getRandomValues(randomBytes);
-    } else {
-      for (let i = 0; i < length; i++) {
-        randomBytes[i] = Math.floor(Math.random() * 256);
-      }
+    const cryptoObj = typeof globalThis !== 'undefined' && globalThis.crypto ? globalThis.crypto : null;
+    if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+      throw new Error('Cryptographically secure RNG (crypto.getRandomValues) is required for TOTP secret generation.');
     }
+    cryptoObj.getRandomValues(randomBytes);
 
     let secret = '';
     for (let i = 0; i < length; i++) {
@@ -56,10 +54,11 @@ export const TotpService = {
   },
 
   /**
-   * Generate QR Code image URL via secure public QR API
+   * External QR API lookups are disabled to prevent leaking TOTP secrets to third parties.
+   * Production GoTrue provides inline `data.totp.qr_code` SVG data URIs directly; offline setups use manual Base32 copy.
    */
-  getQrCodeUrl(otpAuthUrl: string): string {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(otpAuthUrl)}&margin=10`;
+  getQrCodeUrl(_otpAuthUrl: string): string {
+    return '';
   },
 
   /**

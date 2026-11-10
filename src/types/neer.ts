@@ -42,6 +42,7 @@ export interface ConversationContext {
   userAuthenticated?: boolean;
   userEmail?: string;
   currentLeadId?: string;
+  bookingId?: string;
   leadStage?: 'initial' | 'requirements_gathered' | 'awaiting_contact' | 'submitted';
   enquiryNotes?: string[];
   lastQuestionAsked?: string;
@@ -115,6 +116,7 @@ export interface LeadRecord {
   customerRequirements: string;
   conversationSummary: string;
   sourcePage: string;
+  inquirySource?: 'website_form' | 'mascot' | 'contact_page';
   leadStatus: 'New' | 'Incomplete' | 'Contacted' | 'Closed';
   adminNotificationStatus: 'Sent' | 'Pending' | 'Failed';
   customerConfirmationStatus: 'Sent' | 'Skipped' | 'Pending' | 'Failed';
@@ -150,7 +152,6 @@ export interface NeerAnalytics {
 
 export interface NeerAIConfig {
   provider: 'local' | 'gemini';
-  geminiApiKey?: string;
   modelName: string;
   temperature: number;
   strictRAGOnly: boolean;
@@ -160,10 +161,7 @@ export interface NeerAIConfig {
 export interface AutomationConfig {
   adminEmail: string;
   googleSheetsSpreadsheetId: string;
-  googleSheetsWebhookUrl: string;
   googleSheetsAutoSync: boolean;
-  emailProviderApiKey?: string;
   emailFromAddress?: string;
-  aiProviderApiKey?: string;
   lastSheetsSyncTime?: string;
 }

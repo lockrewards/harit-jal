@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { PhoneCall, MessageSquare, Palette, CheckCircle2, ShieldCheck, Truck, ArrowRight, Droplets, HelpCircle } from 'lucide-react';
+import { PhoneCall, MessageSquare, Palette, CheckCircle2, ShieldCheck, Truck } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
-import { useRouter } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 
 interface HowItWorksPageProps {
   onOpenBookingModal: () => void;

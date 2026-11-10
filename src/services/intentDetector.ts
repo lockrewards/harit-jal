@@ -1,8 +1,7 @@
 import { 
   ConversationContext, 
   ExtractedEntities, 
-  IntentResult, 
-  NeerIntentType 
+  IntentResult 
 } from '../types/neer';
 
 export class IntentDetector {
@@ -49,7 +48,7 @@ export class IntentDetector {
     }
 
     // 4. International format e.g. +1 (555) 123-4567
-    const intlMatch = cleanText.match(/(?:\+?1[\-\s]?)?\(?\d{3}\)?[\-\s]?\d{3}[\-\s]?\d{4}\b/);
+    const intlMatch = cleanText.match(/(?:\+?1[-\s]?)?\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}\b/);
     if (intlMatch) {
       return intlMatch[0].trim();
     }

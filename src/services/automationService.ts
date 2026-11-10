@@ -1,5 +1,8 @@
 import { AutomationConfig, LeadRecord } from '../types/neer';
+import { readViteEnv } from './env';
+import { ResendService } from './resendService';
 import { EmailLog } from './storage';
+import { getSupabaseClient, isSupabaseConfigured, SupabaseService } from './supabase';
 
 const STORAGE_KEYS = {
   AUTOMATION_CONFIG: 'harit_jal_automation_config_v1',
@@ -11,19 +14,58 @@ const STORAGE_KEYS = {
 const DEFAULT_CONFIG: AutomationConfig = {
   adminEmail: 'info@haritjal.in',
   googleSheetsSpreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-  googleSheetsWebhookUrl: 'https://script.google.com/macros/s/AKfycbz_HaritJal_LiveSync/exec',
   googleSheetsAutoSync: true,
-  emailFromAddress: 'info@haritjal.in',
-  emailProviderApiKey: '',
-  aiProviderApiKey: '',
+  emailFromAddress: 'noreply@haritjal.in',
 };
+
+export interface ServerIntegrationStatus {
+  resendConfigured: boolean;
+  sheetsWebhookConfigured: boolean;
+  geminiConfigured: boolean;
+}
+
+function sanitizeAutomationConfig(rawObj: Record<string, unknown>): {
+  clean: AutomationConfig;
+  hadLegacySecrets: boolean;
+} {
+  const hadLegacySecrets =
+    'googleSheetsWebhookUrl' in rawObj ||
+    'emailProviderApiKey' in rawObj ||
+    'aiProviderApiKey' in rawObj ||
+    'webhookSecret' in rawObj;
+
+  const clean: AutomationConfig = {
+    adminEmail: typeof rawObj.adminEmail === 'string' && rawObj.adminEmail.trim()
+      ? rawObj.adminEmail.trim()
+      : DEFAULT_CONFIG.adminEmail,
+    googleSheetsSpreadsheetId: typeof rawObj.googleSheetsSpreadsheetId === 'string' && rawObj.googleSheetsSpreadsheetId.trim()
+      ? rawObj.googleSheetsSpreadsheetId.trim()
+      : DEFAULT_CONFIG.googleSheetsSpreadsheetId,
+    googleSheetsAutoSync: typeof rawObj.googleSheetsAutoSync === 'boolean'
+      ? rawObj.googleSheetsAutoSync
+      : DEFAULT_CONFIG.googleSheetsAutoSync,
+    emailFromAddress: typeof rawObj.emailFromAddress === 'string' && rawObj.emailFromAddress.trim()
+      ? rawObj.emailFromAddress.trim()
+      : DEFAULT_CONFIG.emailFromAddress,
+    lastSheetsSyncTime: typeof rawObj.lastSheetsSyncTime === 'string'
+      ? rawObj.lastSheetsSyncTime
+      : undefined,
+  };
+
+  return { clean, hadLegacySecrets };
+}
 
 export class AutomationService {
   public static getConfig(): AutomationConfig {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.AUTOMATION_CONFIG);
       if (raw) {
-        return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const { clean, hadLegacySecrets } = sanitizeAutomationConfig(parsed);
+        if (hadLegacySecrets) {
+          localStorage.setItem(STORAGE_KEYS.AUTOMATION_CONFIG, JSON.stringify(clean));
+        }
+        return clean;
       }
     } catch {
       // Fallback
@@ -33,9 +75,46 @@ export class AutomationService {
 
   public static saveConfig(updates: Partial<AutomationConfig>): AutomationConfig {
     const current = this.getConfig();
-    const updated = { ...current, ...updates };
-    localStorage.setItem(STORAGE_KEYS.AUTOMATION_CONFIG, JSON.stringify(updated));
-    return updated;
+    const { clean } = sanitizeAutomationConfig({ ...current, ...updates } as Record<string, unknown>);
+    localStorage.setItem(STORAGE_KEYS.AUTOMATION_CONFIG, JSON.stringify(clean));
+    return clean;
+  }
+
+  /**
+   * Queries non-secret integration readiness flags (booleans only) from crm-sync Edge Function.
+   * Requires an active authenticated AAL2 staff JWT.
+   */
+  public static async fetchServerIntegrationStatus(): Promise<ServerIntegrationStatus | null> {
+    if (!isSupabaseConfigured()) return null;
+    const supabase = getSupabaseClient();
+    const supabaseUrl = readViteEnv('VITE_SUPABASE_URL').replace(/\/$/, '');
+    const anonKey = readViteEnv('VITE_SUPABASE_ANON_KEY');
+    if (!supabase || !supabaseUrl || !anonKey) return null;
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) return null;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/crm-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'integration_status' }),
+      });
+
+      if (!res.ok) return null;
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        integrations?: ServerIntegrationStatus;
+      };
+      return data.success && data.integrations ? data.integrations : null;
+    } catch {
+      return null;
+    }
   }
 
   public static getAllLeads(): LeadRecord[] {
@@ -85,7 +164,6 @@ export class AutomationService {
     let savedLead: LeadRecord;
 
     if (existingIndex >= 0) {
-      // Update existing lead without creating duplicate rows
       const existing = leads[existingIndex];
       savedLead = {
         ...existing,
@@ -106,7 +184,6 @@ export class AutomationService {
       };
       leads[existingIndex] = savedLead;
     } else {
-      // Create fresh lead record
       const newLeadId = `LEAD-HJ-${Math.floor(1000 + Math.random() * 9000)}`;
       savedLead = {
         id: leadData.id || newLeadId,
@@ -135,18 +212,18 @@ export class AutomationService {
 
     localStorage.setItem(STORAGE_KEYS.LEAD_RECORDS, JSON.stringify(leads));
 
-    // Trigger Google Sheets sync in background
-    this.syncToGoogleSheets(savedLead).catch((e) => {
-      console.warn('Google Sheets sync queued for retry:', e);
-    });
+    // Trigger server-proxied Google Sheets CRM sync in background (only for complete leads)
+    if (savedLead.leadStatus !== 'Incomplete') {
+      this.syncToGoogleSheets(savedLead).catch(() => {
+        // Queued for retry inside syncToGoogleSheets
+      });
+    }
 
     return savedLead;
   }
 
   /**
    * Flush partial leads older than 5 minutes or on demand
-   * If a user provided only email or phone and did not provide remaining details within 5 min,
-   * preserve whatever details exist and sync to Google Sheets & Admin.
    */
   public static flushPartialLeads(): void {
     const leads = this.getAllLeads();
@@ -161,8 +238,29 @@ export class AutomationService {
         if (diffMinutes >= 5) {
           lead.leadStatus = 'New';
           lead.conversationSummary = `[Auto-Flushed after 5m timeout] Contact details recorded: ${lead.phone !== 'Not provided' ? 'Phone: ' + lead.phone : ''} ${lead.email !== 'Not provided' ? 'Email: ' + lead.email : ''}`;
-          this.syncToGoogleSheets(lead).catch(() => {});
-          this.sendAdminNotification(lead);
+
+          if (isSupabaseConfigured()) {
+            SupabaseService.syncConsultationLead({
+              id: lead.id,
+              restaurantName: lead.businessName || 'Valued Restaurant Partner',
+              ownerName: lead.customerName || 'Restaurant Owner',
+              phone: lead.phone,
+              email: lead.email,
+              city: lead.location || 'India',
+              preferredTime: 'Auto-Flushed Lead',
+              bottleTypes: lead.bottleSize ? [lead.bottleSize] : [],
+              notes: lead.customerRequirements,
+              status: 'New',
+            }).then((synced) => {
+              if (synced) {
+                this.syncToGoogleSheets(lead).catch(() => {});
+                this.sendAdminNotification(lead);
+              }
+            }).catch(() => {});
+          } else {
+            this.syncToGoogleSheets(lead).catch(() => {});
+            this.sendAdminNotification(lead);
+          }
           updated = true;
         }
       }
@@ -174,55 +272,55 @@ export class AutomationService {
   }
 
   /**
-   * Sync single lead record to Google Sheets
+   * Sync single lead record to Google Sheets strictly via server-side `crm-sync` Edge Function.
+   * Webhook URL and shared secret NEVER touch browser code or storage.
    */
   public static async syncToGoogleSheets(lead: LeadRecord): Promise<boolean> {
     const config = this.getConfig();
-    if (!config.googleSheetsAutoSync && !config.googleSheetsWebhookUrl) {
+    if (!config.googleSheetsAutoSync) {
+      return false;
+    }
+
+    if (!isSupabaseConfigured()) {
+      this.updateLeadStatusFields(lead.id, { googleSheetsStatus: 'Pending' });
+      this.queueForRetry(lead.id);
+      return false;
+    }
+
+    const supabaseUrl = readViteEnv('VITE_SUPABASE_URL').replace(/\/$/, '');
+    const anonKey = readViteEnv('VITE_SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !anonKey) {
+      this.updateLeadStatusFields(lead.id, { googleSheetsStatus: 'Pending' });
+      this.queueForRetry(lead.id);
       return false;
     }
 
     try {
-      if (config.googleSheetsWebhookUrl && config.googleSheetsWebhookUrl.startsWith('http')) {
-        const payload = {
-          action: 'upsert_lead',
+      const response = await fetch(`${supabaseUrl}/functions/v1/crm-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          action: 'sync_lead',
           spreadsheetId: config.googleSheetsSpreadsheetId,
-          sheetName: 'HaritJal_Customer_Leads',
-          leadId: lead.id,
-          createdDate: lead.createdDate,
-          customerName: lead.customerName,
-          email: lead.email,
-          phone: lead.phone,
-          businessName: lead.businessName,
-          businessCategory: lead.businessCategory,
-          location: lead.location,
-          bottleSize: lead.bottleSize,
-          bottleMaterial: lead.bottleMaterial,
-          estimatedQuantity: lead.estimatedQuantity,
-          customerRequirements: lead.customerRequirements,
-          conversationSummary: lead.conversationSummary,
-          sourcePage: lead.sourcePage,
-          leadStatus: lead.leadStatus,
-          adminNotificationStatus: lead.adminNotificationStatus,
-          customerConfirmationStatus: lead.customerConfirmationStatus,
-          lastUpdated: lead.lastUpdated,
-        };
+          lead,
+        }),
+      });
 
-        // Post to Google Apps Script / n8n webhook
-        await fetch(config.googleSheetsWebhookUrl, {
-          method: 'POST',
-          mode: 'no-cors', // Standard for Google Apps Script Webhooks
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+      const data = (await response.json().catch(() => ({}))) as { success?: boolean; synced?: boolean };
+      if (!response.ok || !data.synced) {
+        this.updateLeadStatusFields(lead.id, { googleSheetsStatus: 'Pending' });
+        this.queueForRetry(lead.id);
+        return false;
       }
 
-      // Mark as Synced
       this.updateLeadStatusFields(lead.id, { googleSheetsStatus: 'Synced' });
       this.saveConfig({ lastSheetsSyncTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
       return true;
-    } catch (err) {
-      console.error('Failed to sync to Google Sheets, marking pending:', err);
+    } catch {
       this.updateLeadStatusFields(lead.id, { googleSheetsStatus: 'Pending' });
       this.queueForRetry(lead.id);
       return false;
@@ -230,16 +328,22 @@ export class AutomationService {
   }
 
   /**
-   * Automatic Admin Email Notification Dispatcher
+   * Automatic Admin Email Notification Dispatcher (proxied to Resend via Edge Function)
    */
   public static sendAdminNotification(lead: LeadRecord): boolean {
     const config = this.getConfig();
     const adminRecipient = config.adminEmail || 'info@haritjal.in';
 
-    const subject = `New Customer Enquiry — Harit Jal | ${lead.businessName || lead.customerName}`;
+    const isMascot = !lead.sourcePage || /mascot|neer/i.test(lead.sourcePage) || lead.inquirySource === 'mascot';
+    const channelTag = isMascot ? 'Mascot (Neer AI)' : 'Website Form';
+    const channelDetail = lead.sourcePage || (isMascot ? 'Mascot (Neer AI Chat)' : 'Website Form');
+
+    const subject = `🚨 [NEW ENQUIRY via ${channelTag}] ${lead.businessName || lead.customerName} (${lead.location || 'India'})`;
     const emailBody = `Hello Admin,
 
-A new customer enquiry has been received through Neer AI.
+A new customer enquiry has been received via ${channelDetail}.
+
+• Channel / Source: ${channelDetail}
 
 Customer Details:
 • Name: ${lead.customerName}
@@ -260,14 +364,11 @@ ${lead.conversationSummary}
 
 Metadata:
 • Lead ID: ${lead.id}
-• Source Page: ${lead.sourcePage}
+• Source Page / Channel: ${channelDetail}
 • Enquiry Timestamp: ${lead.createdDate}
 • Lead Status: ${lead.leadStatus}
 
-Please follow up with the customer.
-
-Regards,
-Harit Jal AI Assistant`;
+Please follow up with the customer promptly.`;
 
     this.recordEmailDispatch({
       recipient: adminRecipient,
@@ -275,6 +376,24 @@ Harit Jal AI Assistant`;
       content: emailBody,
       type: 'admin_lead_alert',
     });
+
+    if (isSupabaseConfigured()) {
+      ResendService.sendAdminLeadAlert({
+        id: lead.id,
+        customerName: lead.customerName,
+        email: lead.email,
+        phone: lead.phone,
+        businessName: lead.businessName,
+        businessCategory: lead.businessCategory,
+        location: lead.location,
+        bottleSize: lead.bottleSize,
+        bottleMaterial: lead.bottleMaterial,
+        estimatedQuantity: lead.estimatedQuantity,
+        customerRequirements: lead.customerRequirements,
+        conversationSummary: lead.conversationSummary,
+        sourcePage: channelDetail,
+      }).catch(() => {});
+    }
 
     this.updateLeadStatusFields(lead.id, { adminNotificationStatus: 'Sent' });
     return true;
@@ -285,11 +404,11 @@ Harit Jal AI Assistant`;
    */
   public static sendCustomerConfirmation(lead: LeadRecord): boolean {
     if (lead.customerConfirmationStatus === 'Sent') {
-      return true; // Already sent, do not duplicate!
+      return true;
     }
 
     const config = this.getConfig();
-    const fromAddress = config.emailFromAddress || 'info@haritjal.in';
+    const fromAddress = config.emailFromAddress || 'noreply@haritjal.in';
 
     const subject = `Thank You for Your Interest in Harit Jal`;
     const customerBody = `Hello ${lead.customerName || 'Valued Partner'},
@@ -304,14 +423,8 @@ Summary of Received Details:
 • Daily Requirement: ${lead.estimatedQuantity}
 • Registered Email: ${lead.email}
 
-Our hospitality partnerships desk has received your contact details and requirements. We appreciate your interest in elevating your dining tables with bespoke branded hydration.
-
 Regards,
-Team Harit Jal
-Hospitality Partner Desk
-Phone/WhatsApp: +91 62992 93497
-Email: ${fromAddress}
-Banuchhapar, Bettiah, Bihar India`;
+Team Harit Jal (${fromAddress})`;
 
     this.recordEmailDispatch({
       recipient: lead.email,
@@ -320,13 +433,22 @@ Banuchhapar, Bettiah, Bihar India`;
       type: 'client_confirmation',
     });
 
+    if (isSupabaseConfigured() && lead.email && lead.email.includes('@')) {
+      ResendService.sendConsultationConfirmation({
+        restaurantName: lead.businessName || 'Restaurant Partner',
+        ownerName: lead.customerName || 'Valued Partner',
+        email: lead.email,
+        phone: lead.phone || 'On file',
+        preferredTime: 'Hospitality Desk Follow-Up',
+        city: lead.location || 'Pan-India',
+        bookingId: lead.id,
+      }).catch(() => {});
+    }
+
     this.updateLeadStatusFields(lead.id, { customerConfirmationStatus: 'Sent' });
     return true;
   }
 
-  /**
-   * Internal logger for email dispatches
-   */
   private static recordEmailDispatch(emailData: {
     recipient: string;
     subject: string;
@@ -343,6 +465,7 @@ Banuchhapar, Bettiah, Bihar India`;
         subject: emailData.subject,
         sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: emailData.type,
+        status: 'Dispatched',
         content: emailData.content,
       };
 
@@ -354,7 +477,7 @@ Banuchhapar, Bettiah, Bihar India`;
   }
 
   private static updateLeadStatusFields(
-    leadId: string, 
+    leadId: string,
     fields: Partial<Pick<LeadRecord, 'adminNotificationStatus' | 'customerConfirmationStatus' | 'googleSheetsStatus' | 'leadStatus'>>
   ): void {
     const leads = this.getAllLeads();
@@ -387,7 +510,7 @@ Banuchhapar, Bettiah, Bihar India`;
       for (const id of queue) {
         const lead = this.getLeadById(id);
         if (lead) {
-          this.syncToGoogleSheets(lead);
+          this.syncToGoogleSheets(lead).catch(() => {});
           count++;
         }
       }

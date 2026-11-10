@@ -23,13 +23,27 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment secrets
+# Environment secrets (Frontend & Edge Functions)
 .env
 .env.*
 .env.local
 .env.*.local
 *.env
 !.env.example
+!.env.staging.example
+supabase/functions/.env
+supabase/functions/.env.*
+!supabase/functions/.env.example
+!supabase/functions/.env.staging.example
 
 # Local audit reports
 AUDIT_REPORT/
+
+# Generated audit reports, security test reports, runbooks, and development documentation
+/*.md
+!/README.md
+docs/
+
+# Supabase CLI temporary runtime & linked state (Must never be committed or persist production link)
+supabase/.temp/
+.temp/

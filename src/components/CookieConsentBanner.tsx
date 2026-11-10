@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Cookie, ShieldCheck, Check, X, Sliders, Lock, Info } from 'lucide-react';
-import { CookieConsentService, CookiePreferences } from '../services/cookieConsent';
+import { CookieConsentService } from '../services/cookieConsent';
 import { soundPlayer } from '../services/sound';
 
 interface CookieConsentBannerProps {
@@ -10,9 +10,6 @@ interface CookieConsentBannerProps {
 export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpenLegalModal }) => {
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
-  const [preferences, setPreferences] = useState<CookiePreferences>(() =>
-    CookieConsentService.getPreferences()
-  );
 
   // Draft state for modal toggles
   const [functionalDraft, setFunctionalDraft] = useState(true);
@@ -33,7 +30,6 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
   useEffect(() => {
     const handleOpenPreferences = () => {
       const current = CookieConsentService.getPreferences();
-      setPreferences(current);
       setFunctionalDraft(current.functional);
       setAnalyticsDraft(current.analytics);
       setIsPreferencesOpen(true);
@@ -47,16 +43,14 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
 
   const handleAcceptAll = () => {
     soundPlayer.playSuccessChime();
-    const updated = CookieConsentService.acceptAll();
-    setPreferences(updated);
+    CookieConsentService.acceptAll();
     setIsBannerVisible(false);
     setIsPreferencesOpen(false);
   };
 
   const handleAcceptEssentialOnly = () => {
     soundPlayer.playWaterDrop();
-    const updated = CookieConsentService.acceptEssentialOnly();
-    setPreferences(updated);
+    CookieConsentService.acceptEssentialOnly();
     setIsBannerVisible(false);
     setIsPreferencesOpen(false);
   };
@@ -71,11 +65,10 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
 
   const handleSaveCustomPreferences = () => {
     soundPlayer.playSuccessChime();
-    const updated = CookieConsentService.savePreferences({
+    CookieConsentService.savePreferences({
       functional: functionalDraft,
       analytics: analyticsDraft,
     });
-    setPreferences(updated);
     setIsPreferencesOpen(false);
     setIsBannerVisible(false);
   };

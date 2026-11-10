@@ -2,53 +2,97 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   PhoneCall, Truck, Package, CheckCircle2, Clock, LogOut, PlusCircle,
-  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, ChevronDown, ChevronUp, User, UserCheck
+  Phone, MessageSquare, Calendar, CalendarCheck, AlertCircle, ChevronUp, User, UserCheck
 } from 'lucide-react';
 import { CustomerAccount, CustomerOrder, CallBooking } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
 import { StorageService } from '../services/storage';
 import { AutomationService } from '../services/automationService';
 import { OtpService } from '../services/otpService';
+import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
+import { isProductionEnvironment } from '../services/env';
 import { CustomerOtpCard } from '../components/CustomerOtpCard';
 import { InlineOtpSection } from '../components/InlineOtpSection';
 import { CustomerProfileSettingsModal } from '../components/CustomerProfileSettingsModal';
+import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
 import { soundPlayer } from '../services/sound';
+
+const getMinDateTimeString = () => {
+  const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const year = minTime.getFullYear();
+  const month = String(minTime.getMonth() + 1).padStart(2, '0');
+  const day = String(minTime.getDate()).padStart(2, '0');
+  const hours = String(minTime.getHours()).padStart(2, '0');
+  const minutes = String(minTime.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const getDefaultDateTimeString = () => {
+  const d = new Date(Date.now() + 2.5 * 60 * 60 * 1000);
+  d.setMinutes(d.getMinutes() >= 30 ? 60 : 30, 0, 0);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatDisplayDateTime = (dateTimeStr: string) => {
+  try {
+    const d = new Date(dateTimeStr);
+    if (isNaN(d.getTime())) return dateTimeStr;
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return dateTimeStr;
+  }
+};
 
 export const TrackPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<CustomerAccount | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [myInquiries, setMyInquiries] = useState<CallBooking[]>([]);
   const [activeTab, setActiveTab] = useState<'track' | 'new_order' | 'inquiry'>('track');
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot_password' | 'verify_signup_otp' | 'verify_reset_otp'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot_password' | 'verify_signup_otp' | 'verify_reset_otp' | 'recovery'>('login');
   const [isSignupOtpVerified, setIsSignupOtpVerified] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState('karanpreet@karanthedhaba.com');
-  const [loginPassword, setLoginPassword] = useState('password123');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
 
-  // Forgot password form state
+  // Forgot password & Supabase recovery form state
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [recoveryConfirm, setRecoveryConfirm] = useState('');
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   // Sign up form state
-  const [signupRestaurant, setSignupRestaurant] = useState('Karan The Dhaba');
-  const [signupOwner, setSignupOwner] = useState('Karanpreet Singh');
-  const [signupPhone, setSignupPhone] = useState('+91 62992 93497');
-  const [signupEmail, setSignupEmail] = useState('info@haritjal.in');
-  const [signupCity, setSignupCity] = useState('Murthal, GT Road, Haryana');
-  const [signupPassword, setSignupPassword] = useState('password123');
-  const [signupDpdpConsent, setSignupDpdpConsent] = useState(true);
+  const [signupRestaurant, setSignupRestaurant] = useState('');
+  const [signupOwner, setSignupOwner] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupCity, setSignupCity] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupDpdpConsent, setSignupDpdpConsent] = useState(false);
 
   // Place order state
   const [orderSize, setOrderSize] = useState<'250ml' | '500ml' | '750ml_glass' | '1000ml'>('500ml');
   const [orderCases, setOrderCases] = useState<number>(50);
-  const [deliveryAddress, setDeliveryAddress] = useState('Milestone 52, GT Karnal Road, Murthal, Haryana');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // Schedule a Call State
+  const [minDateTime] = useState(() => getMinDateTimeString());
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleName, setScheduleName] = useState('');
   const [schedulePhone, setSchedulePhone] = useState('');
@@ -58,42 +102,6 @@ export const TrackPage: React.FC = () => {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
-
-  const getMinDateTimeString = () => {
-    // Current time + 2 hours
-    const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
-    const year = minTime.getFullYear();
-    const month = String(minTime.getMonth() + 1).padStart(2, '0');
-    const day = String(minTime.getDate()).padStart(2, '0');
-    const hours = String(minTime.getHours()).padStart(2, '0');
-    const minutes = String(minTime.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  const getDefaultDateTimeString = () => {
-    const d = new Date(Date.now() + 2.5 * 60 * 60 * 1000);
-    d.setMinutes(d.getMinutes() >= 30 ? 60 : 30, 0, 0);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  const formatDisplayDateTime = (dateTimeStr: string) => {
-    try {
-      const d = new Date(dateTimeStr);
-      if (isNaN(d.getTime())) return dateTimeStr;
-      return d.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-    } catch {
-      return dateTimeStr;
-    }
-  };
 
   const getRate = (size: typeof orderSize) => {
     if (size === '750ml_glass') return 24;
@@ -105,47 +113,91 @@ export const TrackPage: React.FC = () => {
   const totalBottles = orderCases * bottlesPerCase;
   const totalCost = totalBottles * getRate(orderSize);
 
-  useEffect(() => {
-    document.title = 'Restaurant Partner Portal | Harit Jal™';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    const user = CustomerAuthService.getCurrentCustomer();
-    setCurrentUser(user);
-    if (user) {
-      refreshData(user.email);
-      setScheduleName(user.ownerName || '');
-      setSchedulePhone(user.phone || '');
-      setScheduleDateTime(getDefaultDateTimeString());
-    }
-  }, []);
+  const refreshData = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
 
-  const refreshData = (email: string) => {
-    const customerOrders = CustomerAuthService.getOrdersForCustomer(email);
+    if (isSupabaseConfigured()) {
+      const [cloudOrders, cloudBookings] = await Promise.all([
+        SupabaseService.fetchOrdersForCustomer(cleanEmail),
+        SupabaseService.fetchConsultationsForCustomer(cleanEmail),
+      ]);
+
+      if (cloudOrders) {
+        CustomerAuthService.setOrdersCache(cloudOrders);
+        setOrders(cloudOrders);
+      } else {
+        setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+      }
+
+      if (cloudBookings) {
+        setMyInquiries(cloudBookings);
+      } else {
+        setMyInquiries(
+          StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
+        );
+      }
+      return;
+    }
+
+    const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
     setOrders(customerOrders);
 
     const allInquiries = StorageService.getBookings();
-    const matched = allInquiries.filter(
-      (inq) => inq.email.toLowerCase() === email.toLowerCase()
-    );
+    const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
     setMyInquiries(matched);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    soundPlayer.playWaterDrop();
+  useEffect(() => {
+    document.title = 'Restaurant Partner Portal | Harit Jal™';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    let cancelled = false;
 
-    const res = CustomerAuthService.loginWithSecurity(loginEmail, loginPassword);
-    if (res.success && res.customer) {
-      setCurrentUser(res.customer);
-      refreshData(res.customer.email);
-      soundPlayer.playSuccessChime();
-    } else {
-      soundPlayer.playBubblePop();
-      setLoginError(res.error || 'Invalid credentials. Check demo account details below.');
-    }
-  };
+    const checkRecoveryIntent = () => {
+      const searchParams = new URLSearchParams(window.location.search || '');
+      const hashStr = (window.location.hash || '').toLowerCase();
+      return searchParams.get('mode') === 'recovery' || hashStr.includes('type=recovery');
+    };
 
-  const handleSignUp = (e: React.FormEvent) => {
+    const handleRecoveryEvent = () => {
+      if (!cancelled) {
+        setCurrentUser(null);
+        setMode('recovery');
+      }
+    };
+    window.addEventListener('haritjalRecovery', handleRecoveryEvent);
+
+    const initPortal = async () => {
+      const inRecovery = checkRecoveryIntent();
+      let user = CustomerAuthService.getCurrentCustomer();
+      if (!inRecovery && !user && isSupabaseConfigured()) {
+        user = await CustomerAuthService.syncSessionProfile();
+      } else {
+        await Promise.resolve();
+      }
+      if (cancelled) return;
+      if (inRecovery) {
+        setCurrentUser(null);
+        setMode('recovery');
+        return;
+      }
+      setCurrentUser(user);
+      if (user) {
+        await refreshData(user.email);
+        if (cancelled) return;
+        setScheduleName(user.ownerName || '');
+        setSchedulePhone(user.phone || '');
+        setScheduleDateTime(getDefaultDateTimeString());
+      }
+    };
+
+    void initPortal();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('haritjalRecovery', handleRecoveryEvent);
+    };
+  }, []);
+
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginSuccess(null);
@@ -162,8 +214,8 @@ export const TrackPage: React.FC = () => {
       return;
     }
 
-    if (!signupPassword || signupPassword.length < 6) {
-      setLoginError('Password must be at least 6 characters.');
+    if (!signupPassword || signupPassword.length < 8) {
+      setLoginError('Password must be at least 8 characters.');
       soundPlayer.playBubblePop();
       return;
     }
@@ -175,32 +227,49 @@ export const TrackPage: React.FC = () => {
     }
 
     soundPlayer.playWaterDrop();
-    const newAccount = CustomerAuthService.register({
-      restaurantName: signupRestaurant,
-      ownerName: signupOwner,
-      email: signupEmail,
-      phone: signupPhone,
-      city: signupCity,
-      password: signupPassword,
-    });
+    try {
+      const res = await CustomerAuthService.signUpWithSupabaseAuth({
+        restaurantName: signupRestaurant,
+        ownerName: signupOwner,
+        email: signupEmail,
+        phone: signupPhone,
+        city: signupCity,
+        password: signupPassword,
+      });
 
-    setCurrentUser(newAccount);
-    refreshData(newAccount.email);
-    soundPlayer.playSuccessChime();
+      if (res.success && res.customer) {
+        setCurrentUser(res.customer);
+        await refreshData(res.customer.email);
+        soundPlayer.playSuccessChime();
 
-    confetti({
-      particleCount: 85,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#C99B42', '#52652D', '#102C47'],
-    });
+        confetti({
+          particleCount: 85,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#C99B42', '#52652D', '#102C47'],
+        });
 
-    setLoginSuccess('Thank you for creating an account! Your restaurant partner portal is now active.');
+        setLoginSuccess('Thank you for creating an account! Your restaurant partner portal is now active.');
+      } else if (res.success && res.requiresEmailConfirmation) {
+        soundPlayer.playSuccessChime();
+        setLoginSuccess('Account created! Please check your email inbox and click the confirmation link before signing in.');
+        setLoginEmail(signupEmail.trim().toLowerCase());
+        setMode('login');
+      } else {
+        setLoginError(res.error || 'Registration failed. Please check your details and try again.');
+        soundPlayer.playBubblePop();
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred during registration.';
+      setLoginError(message);
+      soundPlayer.playBubblePop();
+    }
   };
 
-  const handleRequestPasswordReset = (e: React.FormEvent) => {
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError(null);
+    setForgotSuccess(null);
     soundPlayer.playWaterDrop();
 
     if (!forgotEmail || !forgotEmail.includes('@')) {
@@ -216,13 +285,53 @@ export const TrackPage: React.FC = () => {
       return;
     }
 
-    const res = OtpService.requestPasswordReset(forgotEmail);
-    if (res.success) {
+    const res = await OtpService.requestSupabasePasswordReset(forgotEmail);
+    if (res.success && res.recoveryEmailSent) {
+      soundPlayer.playSuccessChime();
+      setForgotSuccess('Password recovery link dispatched! Please check your email inbox and click the reset link to set a new password.');
+    } else if (res.success && res.useLocalOtp && !isProductionEnvironment()) {
       setMode('verify_reset_otp');
     } else {
       setForgotError(res.error || 'Failed to initiate password reset.');
       soundPlayer.playBubblePop();
     }
+  };
+
+  const handleCompleteRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+
+    if (recoveryPassword.trim().length < 8) {
+      setRecoveryError('New password must be at least 8 characters long.');
+      soundPlayer.playBubblePop();
+      return;
+    }
+    if (recoveryPassword !== recoveryConfirm) {
+      setRecoveryError('Passwords do not match. Please re-enter carefully.');
+      soundPlayer.playBubblePop();
+      return;
+    }
+
+    setRecoveryLoading(true);
+    soundPlayer.playWaterDrop();
+    const res = await OtpService.completeSupabasePasswordReset(recoveryPassword);
+    setRecoveryLoading(false);
+
+    if (!res.success) {
+      soundPlayer.playBubblePop();
+      setRecoveryError(res.error || 'Unable to update password. Please request a fresh recovery link.');
+      return;
+    }
+
+    soundPlayer.playSuccessChime();
+    CustomerAuthService.logout();
+    if (window.location.search.includes('mode=recovery') && window.history?.replaceState) {
+      window.history.replaceState(null, '', '/track');
+    }
+    setRecoveryPassword('');
+    setRecoveryConfirm('');
+    setLoginSuccess('Password updated successfully! Please sign in with your new password.');
+    setMode('login');
   };
 
   const handleLogout = () => {
@@ -234,10 +343,11 @@ export const TrackPage: React.FC = () => {
     setMode('login');
   };
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
 
+    setOrderError(null);
     soundPlayer.playWaterDrop();
     const newOrder = CustomerAuthService.placeOrder({
       ownerEmail: currentUser.email,
@@ -250,6 +360,23 @@ export const TrackPage: React.FC = () => {
       deliveryAddress,
     });
 
+    const orderSynced = await SupabaseService.syncOrder({
+      ...newOrder,
+      ownerName: currentUser.ownerName,
+      phone: currentUser.phone,
+    });
+
+    if (isSupabaseConfigured() && !orderSynced) {
+      CustomerAuthService.setOrdersCache(
+        CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
+      );
+      soundPlayer.playBubblePop();
+      setOrderError(
+        'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
+      );
+      return;
+    }
+
     confetti({
       particleCount: 80,
       spread: 60,
@@ -259,12 +386,12 @@ export const TrackPage: React.FC = () => {
 
     soundPlayer.playSuccessChime();
     setOrderSuccess(`Order ${newOrder.id} confirmed! Scheduled for cellar delivery.`);
-    refreshData(currentUser.email);
+    await refreshData(currentUser.email);
     setActiveTab('track');
     setTimeout(() => setOrderSuccess(null), 5000);
   };
 
-  const handleScheduleCallSubmit = (e: React.FormEvent) => {
+  const handleScheduleCallSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setScheduleError(null);
 
@@ -301,14 +428,15 @@ export const TrackPage: React.FC = () => {
     soundPlayer.playWaterDrop();
     setIsScheduling(true);
 
-    setTimeout(() => {
+    try {
       const formattedDisplay = formatDisplayDateTime(scheduleDateTime);
+      const partnerEmail = currentUser?.email || 'partner@haritjal.in';
 
-      StorageService.addBooking({
+      const booking = StorageService.addBooking({
         restaurantName: currentUser?.restaurantName || 'Restaurant Partner',
         ownerName: scheduleName.trim(),
         phone: schedulePhone.trim(),
-        email: currentUser?.email || 'partner@haritjal.in',
+        email: partnerEmail,
         city: currentUser?.city || 'India',
         bottleSize: scheduleBottleSize,
         monthlyVolume: 3000,
@@ -318,9 +446,34 @@ export const TrackPage: React.FC = () => {
         notes: scheduleNotes.trim(),
       });
 
+      const leadSynced = await SupabaseService.syncConsultationLead({
+        id: booking.id,
+        restaurantName: booking.restaurantName,
+        ownerName: booking.ownerName,
+        phone: booking.phone,
+        email: booking.email,
+        city: booking.city,
+        preferredTime: booking.preferredDateTime,
+        bottleTypes: [scheduleBottleSize],
+        notes: booking.notes,
+        status: booking.status,
+      });
+
+      if (isSupabaseConfigured() && !leadSynced) {
+        StorageService.setBookings(
+          StorageService.getBookings().filter((b) => b.id !== booking.id)
+        );
+        soundPlayer.playBubblePop();
+        setScheduleError(
+          'Unable to save consultation request to our cloud server right now. Please try again shortly or call +91 62992 93497.'
+        );
+        return;
+      }
+
       AutomationService.saveOrUpdateLead({
+        id: booking.id,
         customerName: scheduleName.trim(),
-        email: currentUser?.email || 'partner@haritjal.in',
+        email: partnerEmail,
         phone: schedulePhone.trim(),
         businessName: currentUser?.restaurantName || 'Partner',
         location: currentUser?.city || 'India',
@@ -331,10 +484,9 @@ export const TrackPage: React.FC = () => {
       });
 
       if (currentUser) {
-        refreshData(currentUser.email);
+        await refreshData(currentUser.email);
       }
 
-      setIsScheduling(false);
       setShowScheduleForm(false);
       setScheduleSuccess(`कॉल अनुरोध दर्ज हो गया है! स्लॉट: ${formattedDisplay}. एडमिन अनुमोदन (Admin Approval) के बाद यहाँ "Approved by Admin" दिखेगा।`);
       soundPlayer.playSuccessChime();
@@ -346,7 +498,9 @@ export const TrackPage: React.FC = () => {
       });
 
       setTimeout(() => setScheduleSuccess(null), 8000);
-    }, 300);
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
   return (
@@ -553,6 +707,13 @@ export const TrackPage: React.FC = () => {
                   <span>Order Custom Bottles for "{currentUser.restaurantName}"</span>
                 </h3>
 
+                {orderError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{orderError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#102C47] mb-1">Select Bottle Format</label>
@@ -702,7 +863,7 @@ export const TrackPage: React.FC = () => {
                               required
                               value={scheduleName}
                               onChange={(e) => setScheduleName(e.target.value)}
-                              placeholder="e.g. Karanpreet Singh"
+                              placeholder="Your name"
                               className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none"
                             />
                           </div>
@@ -736,7 +897,7 @@ export const TrackPage: React.FC = () => {
                             <input
                               type="datetime-local"
                               required
-                              min={getMinDateTimeString()}
+                              min={minDateTime}
                               value={scheduleDateTime}
                               onChange={(e) => setScheduleDateTime(e.target.value)}
                               className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-semibold focus:outline-none"
@@ -754,7 +915,7 @@ export const TrackPage: React.FC = () => {
                           </label>
                           <select
                             value={scheduleBottleSize}
-                            onChange={(e) => setScheduleBottleSize(e.target.value as any)}
+                            onChange={(e) => setScheduleBottleSize(e.target.value as typeof scheduleBottleSize)}
                             className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-medium focus:outline-none"
                           >
                             <option value="250ml">250ml Pocket Mist (Artisanal Cafes & Bar)</option>
@@ -1039,71 +1200,38 @@ export const TrackPage: React.FC = () => {
               </div>
             )}
 
-            {/* 1. SIGN IN FORM */}
+            {/* 1. SIGN IN FORM: UNIFIED LOGIN CARD */}
             {mode === 'login' && (
-              <form onSubmit={handleLogin} className="max-w-md mx-auto space-y-4">
+              <div className="max-w-md mx-auto space-y-4">
                 {loginSuccess && (
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>{loginSuccess}</span>
                   </div>
                 )}
-
-                {loginError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-                    {loginError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-[#102C47] mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-medium focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-[#102C47]">Password</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundPlayer.playWaterDrop();
-                        setForgotEmail(loginEmail || '');
-                        setForgotError(null);
-                        setMode('forgot_password');
-                      }}
-                      className="text-xs font-semibold text-[#102C47] hover:text-[#C99B42] hover:underline cursor-pointer"
-                    >
-                      Forgot your password?
-                    </button>
-                  </div>
-                  <input
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-medium focus:outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
-                >
-                  Sign In to Partner Portal
-                </button>
-
-                <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/20 text-[11px] text-[#77766F] space-y-1">
-                  <div className="font-bold text-[#102C47]">Demo Partner Credentials:</div>
-                  <div>Email: <strong className="font-mono text-[#102C47]">karanpreet@karanthedhaba.com</strong></div>
-                  <div>Password: <strong className="font-mono text-[#102C47]">password123</strong></div>
-                </div>
-              </form>
+                <UnifiedLoginCard
+                  initialAccountType="partner"
+                  allowedAccountTypes={['partner']}
+                  initialEmail={loginEmail}
+                  onSuccess={(result) => {
+                    const cust = result.customer || result.partnerUser;
+                    if (result.accountType === 'partner' && cust) {
+                      setCurrentUser(cust);
+                      void refreshData(cust.email);
+                      setScheduleName(cust.ownerName || '');
+                      setSchedulePhone(cust.phone || '');
+                      setScheduleDateTime(getDefaultDateTimeString());
+                    }
+                  }}
+                  onForgotPassword={(fEmail) => {
+                    soundPlayer.playWaterDrop();
+                    setForgotEmail(fEmail || '');
+                    setForgotError(null);
+                    setForgotSuccess(null);
+                    setMode('forgot_password');
+                  }}
+                />
+              </div>
             )}
 
             {/* 2. SIGN UP FORM */}
@@ -1123,7 +1251,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupRestaurant}
                       onChange={(e) => setSignupRestaurant(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="Your business name"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                   <div>
@@ -1133,7 +1262,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupOwner}
                       onChange={(e) => setSignupOwner(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="Your name"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                   <div>
@@ -1143,7 +1273,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupPhone}
                       onChange={(e) => setSignupPhone(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="1234567890"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                   <div>
@@ -1153,7 +1284,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="your@gmail.com"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                   <div>
@@ -1163,7 +1295,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupCity}
                       onChange={(e) => setSignupCity(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="Your business location"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                   <div>
@@ -1173,7 +1306,8 @@ export const TrackPage: React.FC = () => {
                       required
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47]"
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] focus:outline-none focus:ring-1 focus:ring-[#C99B42]"
                     />
                   </div>
                 </div>
@@ -1206,7 +1340,7 @@ export const TrackPage: React.FC = () => {
                       required
                       checked={signupDpdpConsent}
                       onChange={(e) => setSignupDpdpConsent(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded text-[#102C47] accent-[#C99B42] border-[#C99B42]/50 focus:ring-[#C99B42] cursor-pointer shrink-0"
+                      className="mt-0.5 w-4 h-4 rounded text-[#102C47] accent-[#0F3826] border-[#C99B42]/50 focus:ring-[#0F3826] cursor-pointer shrink-0"
                     />
                     <span className="leading-snug text-[11px]">
                       I agree to the Terms and consent to data processing under the <strong className="text-[#102C47] font-semibold">DPDP Act 2023</strong>. Your account credentials and restaurant orders remain strictly encrypted and confidential.
@@ -1217,7 +1351,7 @@ export const TrackPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!isSignupOtpVerified}
-                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-full bg-[#0F3826] hover:bg-[#0B2A1C] text-white font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSignupOtpVerified ? 'Create Partner Account →' : 'Verify Email OTP to Create Account'}
                 </button>
@@ -1232,9 +1366,16 @@ export const TrackPage: React.FC = () => {
                     Reset Partner Password
                   </h3>
                   <p className="text-xs text-[#77766F] mt-1 leading-relaxed">
-                    Enter your registered restaurant email address. We will dispatch a 6-digit OTP verification code to reset your account password.
+                    Enter your registered restaurant email address to receive your password recovery link or verification challenge.
                   </p>
                 </div>
+
+                {forgotSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{forgotSuccess}</span>
+                  </div>
+                )}
 
                 {forgotError && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
@@ -1258,13 +1399,14 @@ export const TrackPage: React.FC = () => {
                   type="submit"
                   className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
                 >
-                  Send 6-Digit OTP Code →
+                  Send Recovery Instructions →
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
                     soundPlayer.playWaterDrop();
+                    setForgotSuccess(null);
                     setLoginError(null);
                     setMode('login');
                   }}
@@ -1288,17 +1430,43 @@ export const TrackPage: React.FC = () => {
                   city: signupCity,
                   password: signupPassword,
                 }}
-                onSuccess={(res) => {
-                  const newAccount = CustomerAuthService.register(res.pendingData);
-                  setCurrentUser(newAccount);
-                  refreshData(newAccount.email);
-                  soundPlayer.playSuccessChime();
-                  confetti({
-                    particleCount: 80,
-                    spread: 70,
-                    origin: { y: 0.6 },
-                    colors: ['#C99B42', '#52652D', '#102C47'],
+                onSuccess={async (res) => {
+                  const pending = (res.pendingData || {}) as {
+                    restaurantName?: string;
+                    ownerName?: string;
+                    phone?: string;
+                    email?: string;
+                    city?: string;
+                    password?: string;
+                  };
+                  const resolvedEmail = pending.email || signupEmail;
+                  const authRes = await CustomerAuthService.signUpWithSupabaseAuth({
+                    restaurantName: pending.restaurantName || signupRestaurant,
+                    ownerName: pending.ownerName || signupOwner,
+                    phone: pending.phone || signupPhone,
+                    email: resolvedEmail,
+                    city: pending.city || signupCity,
+                    password: pending.password || signupPassword,
                   });
+                  if (authRes.success && authRes.customer) {
+                    setCurrentUser(authRes.customer);
+                    await refreshData(authRes.customer.email);
+                    soundPlayer.playSuccessChime();
+                    confetti({
+                      particleCount: 80,
+                      spread: 70,
+                      origin: { y: 0.6 },
+                      colors: ['#C99B42', '#52652D', '#102C47'],
+                    });
+                  } else if (authRes.success && authRes.requiresEmailConfirmation) {
+                    soundPlayer.playSuccessChime();
+                    setLoginSuccess('Account created! Please check your email inbox and click the confirmation link before signing in.');
+                    setLoginEmail(resolvedEmail.trim().toLowerCase());
+                    setMode('login');
+                  } else {
+                    setLoginError(authRes.error || 'Registration failed. Please try again.');
+                    setMode('signup');
+                  }
                 }}
                 onCancel={() => {
                   soundPlayer.playWaterDrop();
@@ -1312,7 +1480,7 @@ export const TrackPage: React.FC = () => {
             )}
 
             {/* 5. VERIFY FORGOT PASSWORD OTP */}
-            {mode === 'verify_reset_otp' && (
+            {mode === 'verify_reset_otp' && !isProductionEnvironment() && (
               <CustomerOtpCard
                 email={forgotEmail}
                 purpose="forgot_password"
@@ -1320,7 +1488,6 @@ export const TrackPage: React.FC = () => {
                   soundPlayer.playSuccessChime();
                   setLoginSuccess('Password reset successfully! Please sign in with your new password.');
                   setLoginEmail(forgotEmail);
-                  setLoginPassword('');
                   setMode('login');
                 }}
                 onCancel={() => {
@@ -1332,6 +1499,72 @@ export const TrackPage: React.FC = () => {
                   setMode('login');
                 }}
               />
+            )}
+
+            {/* 6. SUPABASE PASSWORD RECOVERY COMPLETION */}
+            {mode === 'recovery' && (
+              <form onSubmit={handleCompleteRecovery} className="max-w-md mx-auto space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="font-playfair font-bold text-lg text-[#102C47]">
+                    Set New Partner Password
+                  </h3>
+                  <p className="text-xs text-[#77766F] mt-1 leading-relaxed">
+                    Your recovery link is verified. Enter a new password (at least 8 characters) to restore Partner Portal access.
+                  </p>
+                </div>
+
+                {recoveryError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+                    {recoveryError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-[#102C47] mb-1">New Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={recoveryPassword}
+                    onChange={(e) => setRecoveryPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-medium focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#102C47] mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={recoveryConfirm}
+                    onChange={(e) => setRecoveryConfirm(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/35 text-xs text-[#102C47] font-medium focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={recoveryLoading}
+                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50"
+                >
+                  {recoveryLoading ? 'Updating Password...' : 'Save New Password & Return to Sign In'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundPlayer.playWaterDrop();
+                    setRecoveryError(null);
+                    setMode('login');
+                  }}
+                  className="w-full py-2 rounded-full text-xs font-semibold text-[#77766F] hover:text-[#102C47] hover:bg-[#F8F3E9] transition cursor-pointer text-center block"
+                >
+                  ← Return to Sign In
+                </button>
+              </form>
             )}
 
           </div>
@@ -1347,7 +1580,7 @@ export const TrackPage: React.FC = () => {
           onClose={() => setShowProfileSettings(false)}
           onUpdated={(updated) => {
             setCurrentUser(updated);
-            refreshData(updated.email);
+            void refreshData(updated.email);
           }}
         />
       )}

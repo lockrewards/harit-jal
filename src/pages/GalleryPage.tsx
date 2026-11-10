@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Droplets, PhoneCall, Maximize2, X, ArrowRight, 
-  ShieldCheck, Images, Info, Recycle
+  Search, Droplets, Maximize2, X, 
+  ShieldCheck, Info, Recycle
 } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 import { GalleryService, GalleryItem } from '../services/galleryService';
@@ -20,7 +20,6 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedPhotoModal, setSelectedPhotoModal] = useState<GalleryItem | null>(null);
-  const [visibleCount, setVisibleCount] = useState<number>(3);
 
   useEffect(() => {
     const update = () => {
@@ -31,11 +30,6 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
       unsubscribe();
     };
   }, []);
-
-  // Reset pagination whenever category or search filter changes
-  useEffect(() => {
-    setVisibleCount(3);
-  }, [activeCategory, searchQuery]);
 
   const categories = [
     { id: 'all', label: 'All Collections' },
@@ -117,14 +111,18 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                }}
                 placeholder="Search by bottle name, decanter, size (500ml, 750ml)..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-full bg-[#FFF9EF] border border-[#C99B42]/40 text-xs text-[#102C47] placeholder-[#77766F] focus:outline-none focus:ring-2 focus:ring-[#C99B42] shadow-sm"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                  }}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -155,32 +153,47 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
           </div>
         </div>
 
-        {/* Gallery Products Grid (Progressive 3-Bottle Lightweight Load) */}
+        {/* Gallery Products Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.slice(0, visibleCount).map((item) => (
+          {filteredItems.map((item) => (
             <div
               key={item.id}
               className="group rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 overflow-hidden shadow-sm hover:border-[#C99B42] hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
             >
               <div>
-                {/* Product Photograph Stage Container */}
-                <div className="relative aspect-[4/5] w-full overflow-hidden bg-gradient-to-b from-[#F7F2EA] via-[#F4ECE1] to-[#EBE0D3] flex items-center justify-center p-5">
+                {/* Full-Bleed Product Photograph Stage (Matching Home/Collections Visual Standard) */}
+                <div 
+                  className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100 cursor-pointer"
+                  onClick={() => {
+                    soundPlayer.playBubblePop();
+                    setSelectedPhotoModal(item);
+                  }}
+                >
                   <img
                     src={item.image}
                     alt={item.title}
                     loading="lazy"
                     decoding="async"
-                    className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_16px_28px_rgba(16,44,71,0.2)] group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src.endsWith('.jpg')) {
+                        target.src = target.src.replace(/\.jpg$/, '.png');
+                      } else if (target.src.endsWith('.png')) {
+                        target.src = target.src.replace(/\.png$/, '.jpg');
+                      }
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
 
-                  {/* Top Badges */}
-                  <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-full bg-[#102C47]/90 text-[#FFF9EF] text-[10.5px] font-bold backdrop-blur-xs shadow-sm flex items-center gap-1">
+                  {/* Top-Left Size / Format Badge */}
+                  <div className="absolute top-2.5 left-2.5 z-20 px-2.5 py-0.5 rounded-full bg-[#102C47]/90 text-[#FFF9EF] text-[10px] font-bold backdrop-blur-xs shadow-sm flex items-center gap-1">
                     <Droplets className="w-3 h-3 text-[#C99B42]" />
                     <span>{item.sizeLabel}</span>
                   </div>
 
+                  {/* Top-Right Category / Edition Badge */}
                   {item.badge && (
-                    <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-[#52652D] text-[#FFF9EF] text-[9.5px] font-bold tracking-wider uppercase shadow-sm">
+                    <div className="absolute top-2.5 right-2.5 z-20 px-2.5 py-0.5 rounded-full bg-[#52652D] text-[#FFF9EF] text-[9.5px] font-bold tracking-wider uppercase shadow-sm">
                       {item.badge}
                     </div>
                   )}
@@ -188,38 +201,36 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
                   {/* Fullscreen Magnifier Overlay Button */}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       soundPlayer.playBubblePop();
                       setSelectedPhotoModal(item);
                     }}
                     title="Inspect High-Res Photo"
-                    className="absolute bottom-3 right-3 z-20 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-[#102C47] hover:text-[#C99B42] flex items-center justify-center shadow-md transition transform opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 cursor-pointer"
+                    className="absolute bottom-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-[#102C47] hover:text-[#C99B42] flex items-center justify-center shadow-md transition transform opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 cursor-pointer"
                   >
                     <Maximize2 className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Card Body */}
-                <div className="p-5 space-y-2.5">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#52652D] block font-mono">
-                      {item.material} • {item.capColor}
-                    </span>
-                    <h3 className="font-bold text-lg text-[#102C47] font-playfair tracking-tight mt-0.5">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-[#C99B42] font-semibold">
-                      {item.subtitle}
-                    </p>
+                <div className="p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center justify-between text-[10.5px] text-[#52652D] font-bold uppercase tracking-wider">
+                    <span>{item.subtitle}</span>
+                    <span className="text-[#C99B42] font-mono">{item.material}</span>
                   </div>
 
-                  <p className="text-xs text-[#77766F] leading-relaxed line-clamp-3">
+                  <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47] group-hover:text-[#C99B42] transition-colors leading-snug">
+                    {item.title}
+                  </h3>
+
+                  <p className="text-xs text-[#77766F] leading-relaxed line-clamp-2">
                     {item.description}
                   </p>
 
-                  {/* Pricing & Profit Guidance with Logistics T&C Disclaimer */}
+                  {/* Pricing Breakdown & Delivery T&C */}
                   {(item.wholesaleRate || item.recommendedMRP) && (
-                    <div className="pt-2 border-t border-[#C99B42]/20 space-y-2 text-xs">
+                    <div className="pt-2 border-t border-[#C99B42]/20 space-y-1.5 text-xs">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-[10px] text-[#77766F] block">Est. Wholesale Cost</span>
@@ -236,69 +247,22 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
                       </div>
 
                       {/* T&C Logistics & Freight Note */}
-                      <div className="p-2.5 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/25 text-[10px] text-[#77766F] space-y-0.5">
+                      <div className="p-2 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/20 text-[10px] text-[#77766F] space-y-0.5 leading-tight">
                         <div className="flex items-center gap-1 font-bold text-[#52652D]">
                           <Info className="w-3 h-3 text-[#C99B42] shrink-0" />
                           <span>*T&amp;C Apply • Delivery Charges Extra</span>
                         </div>
-                        <p className="leading-tight text-[#77766F]">
-                          Rates are indicative estimates. Delivery and freight charges are extra and vary location-to-location based on transit distance and order volume (no fixed flat price).
+                        <p className="text-[#77766F]">
+                          Rates are indicative estimates. Delivery &amp; freight charges extra based on transit distance and volume (no fixed flat price).
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Action Buttons: View More Images & Order Sample */}
-              <div className="p-5 pt-0 space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundPlayer.playBubblePop();
-                      setSelectedPhotoModal(item);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-full bg-[#F8F3E9] hover:bg-white border border-[#C99B42]/40 text-[#102C47] font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                  >
-                    <Images className="w-3.5 h-3.5 text-[#C99B42]" />
-                    <span>View More Images</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleOrderSample(item)}
-                    className="btn-gold-luxury w-full py-2.5 px-3 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
-                  >
-                    <PhoneCall className="w-3.5 h-3.5 text-[#102C47]" />
-                    <span>Order Sample</span>
-                  </button>
-                </div>
-              </div>
             </div>
           ))}
         </div>
-
-        {/* Progressive "View More Images" Load Button */}
-        {visibleCount < filteredItems.length && (
-          <div className="pt-6 pb-2 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setVisibleCount((prev) => Math.min(prev + 3, filteredItems.length));
-              }}
-              className="btn-gold-luxury px-8 py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md hover:shadow-xl transition-all inline-flex items-center gap-2.5 cursor-pointer active:scale-95"
-            >
-              <Images className="w-4 h-4 text-[#102C47]" />
-              <span>View More Images ({filteredItems.length - visibleCount} more bottles available)</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#102C47]" />
-            </button>
-            <p className="text-[11px] text-[#77766F] mt-2">
-              Currently showing {visibleCount} of {filteredItems.length} bottles. Loads 3 at a time for fast, lightweight browsing.
-            </p>
-          </div>
-        )}
 
         {/* Empty Search State */}
         {filteredItems.length === 0 && (
@@ -372,7 +336,10 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
 
       {/* High-Resolution Photo Lightbox Modal */}
       {selectedPhotoModal && (
-        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4">
+        <div 
+          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
+          onClick={() => setSelectedPhotoModal(null)}
+        >
           <button
             type="button"
             onClick={() => setSelectedPhotoModal(null)}
@@ -382,10 +349,21 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
             <X className="w-5 h-5" />
           </button>
 
-          <div className="relative max-w-2xl max-h-[85vh] flex flex-col items-center justify-center space-y-4">
+          <div 
+            className="relative max-w-2xl max-h-[85vh] flex flex-col items-center justify-center space-y-4 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <img
               src={selectedPhotoModal.image}
               alt={selectedPhotoModal.title}
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src.endsWith('.jpg')) {
+                  target.src = target.src.replace(/\.jpg$/, '.png');
+                } else if (target.src.endsWith('.png')) {
+                  target.src = target.src.replace(/\.png$/, '.jpg');
+                }
+              }}
               className="max-h-[65vh] w-auto object-contain rounded-2xl shadow-2xl filter drop-shadow-[0_20px_50px_rgba(201,155,66,0.3)]"
             />
 

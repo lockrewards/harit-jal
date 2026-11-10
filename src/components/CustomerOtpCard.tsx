@@ -65,14 +65,30 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
   });
 
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
-  // Auto focus first input box on load
+  // Sync authoritative server-side lockout status (ID + IP + Device) & focus first digit
   useEffect(() => {
+    let active = true;
+    const syncLockout = async () => {
+      const serverCheck = await OtpService.syncServerBlockStatus(email);
+      if (active && serverCheck.isBlocked) {
+        setIsBlocked(true);
+        setBlockMessage(
+          `This email, device, or network is blocked for 24 hours due to multiple failed verification attempts. Remaining: ${serverCheck.remainingFormatted || 'up to 24h'}.`
+        );
+      }
+    };
+    void syncLockout();
+
     const timer = setTimeout(() => {
       inputRefs.current[0]?.focus();
     }, 150);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [email]);
 
   // Master Countdown Timer Tick (every 1 second)
   useEffect(() => {
@@ -163,34 +179,42 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
     inputRefs.current[focusIdx]?.focus();
   };
 
-  // Resend OTP action
-  const handleResend = () => {
-    if (resendSeconds > 0 || isBlocked || isOtpVerified) return;
+  // Resend OTP action (async server dispatch via Edge Function)
+  const handleResend = async () => {
+    if (resendSeconds > 0 || isBlocked || isOtpVerified || isSending) return;
     setError(null);
     setSuccessMsg(null);
+    setIsSending(true);
     soundPlayer.playWaterDrop();
 
-    const res = OtpService.sendOtp(email, purpose, pendingData);
-    if (res.success) {
-      setDigits(['', '', '', '', '', '']);
-      setValiditySeconds(300);
-      setResendSeconds(60);
-      setAttemptsRemaining(3);
-      setSuccessMsg('A new 6-digit verification code has been dispatched to your email.');
-      setTimeout(() => setSuccessMsg(null), 4000);
-      inputRefs.current[0]?.focus();
-    } else {
-      if (res.error?.includes('blocked for 24 hours')) {
-        setIsBlocked(true);
-        setBlockMessage(res.error);
+    try {
+      const res = await OtpService.sendOtp(email, purpose, pendingData);
+      if (res.success) {
+        setDigits(['', '', '', '', '', '']);
+        setValiditySeconds(300);
+        setResendSeconds(60);
+        setAttemptsRemaining(3);
+        setSuccessMsg('A new 6-digit verification code has been dispatched to your email.');
+        setTimeout(() => setSuccessMsg(null), 4000);
+        inputRefs.current[0]?.focus();
       } else {
-        setError(res.error || 'Failed to resend code.');
+        if (res.isBlocked || res.error?.includes('blocked for 24 hours') || res.error?.includes('locked for 24 hours')) {
+          setIsBlocked(true);
+          setBlockMessage(res.error || 'Blocked for 24 hours.');
+        } else {
+          if (typeof res.resendInSeconds === 'number' && res.resendInSeconds > 0) {
+            setResendSeconds(res.resendInSeconds);
+          }
+          setError(res.error || 'Failed to resend code.');
+        }
       }
+    } finally {
+      setIsSending(false);
     }
   };
 
   // Step 1: Verify OTP Only (for Forgot Password flow)
-  const handleVerifyOtpOnly = (e: React.FormEvent) => {
+  const handleVerifyOtpOnly = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
@@ -216,28 +240,30 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
     setIsVerifying(true);
     soundPlayer.playWaterDrop();
 
-    const result = OtpService.verifyOtp(email, fullCode, 'forgot_password');
+    try {
+      const result = await OtpService.verifyOtp(email, fullCode, 'forgot_password');
 
-    if (result.success) {
-      setIsVerifying(false);
-      setIsOtpVerified(true);
-      soundPlayer.playSuccessChime();
-      setSuccessMsg('OTP verified successfully! You can now set your new password below.');
-      setTimeout(() => {
-        newPasswordInputRef.current?.focus();
-      }, 150);
-    } else {
-      setIsVerifying(false);
-      soundPlayer.playBubblePop();
-      if (result.isBlocked) {
-        setIsBlocked(true);
-        setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+      if (result.success) {
+        setIsOtpVerified(true);
+        soundPlayer.playSuccessChime();
+        setSuccessMsg('OTP verified successfully! You can now set your new password below.');
+        setTimeout(() => {
+          newPasswordInputRef.current?.focus();
+        }, 150);
       } else {
-        setError(result.error || 'Verification failed. Please check your 6-digit code.');
-        if (result.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(result.attemptsRemaining);
+        soundPlayer.playBubblePop();
+        if (result.isBlocked) {
+          setIsBlocked(true);
+          setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+        } else {
+          setError(result.error || 'Verification failed. Please check your 6-digit code.');
+          if (result.attemptsRemaining !== undefined) {
+            setAttemptsRemaining(result.attemptsRemaining);
+          }
         }
       }
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -247,8 +273,8 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    if (!newPassword || newPassword.length < 6) {
-      setError('New password must be at least 6 characters long.');
+    if (!newPassword || newPassword.length < 8) {
+      setError('New password must be at least 8 characters long.');
       soundPlayer.playBubblePop();
       return;
     }
@@ -273,7 +299,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
   };
 
   // Signup OTP Verification
-  const handleVerifySignup = (e: React.FormEvent) => {
+  const handleVerifySignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
@@ -299,23 +325,26 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
     setIsVerifying(true);
     soundPlayer.playWaterDrop();
 
-    const result = OtpService.verifyOtp(email, fullCode, 'signup');
+    try {
+      const result = await OtpService.verifyOtp(email, fullCode, 'signup');
 
-    if (result.success) {
-      soundPlayer.playSuccessChime();
-      onSuccess({ verified: true, pendingData: result.pendingData || pendingData });
-    } else {
-      setIsVerifying(false);
-      soundPlayer.playBubblePop();
-      if (result.isBlocked) {
-        setIsBlocked(true);
-        setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+      if (result.success) {
+        soundPlayer.playSuccessChime();
+        onSuccess({ verified: true, pendingData: result.pendingData || pendingData });
       } else {
-        setError(result.error || 'Verification failed.');
-        if (result.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(result.attemptsRemaining);
+        soundPlayer.playBubblePop();
+        if (result.isBlocked) {
+          setIsBlocked(true);
+          setBlockMessage(result.error || 'Exceeded 3 attempts. Blocked for 24 hours.');
+        } else {
+          setError(result.error || 'Verification failed.');
+          if (result.attemptsRemaining !== undefined) {
+            setAttemptsRemaining(result.attemptsRemaining);
+          }
         }
       }
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -444,7 +473,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="At least 6 characters..."
+                      placeholder="At least 8 characters..."
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#C99B42]/40 text-xs text-[#102C47] pr-10 focus:outline-none focus:ring-2 focus:ring-[#C99B42]/20"
                     />
                     <button
@@ -456,8 +485,8 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {newPassword && newPassword.length < 6 && (
-                    <p className="text-[10.5px] text-amber-600 mt-1">Password must be at least 6 characters</p>
+                  {newPassword && newPassword.length < 8 && (
+                    <p className="text-[10.5px] text-amber-600 mt-1">Password must be at least 8 characters</p>
                   )}
                 </div>
 
@@ -487,7 +516,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
               <div className="pt-2 space-y-2">
                 <button
                   type="submit"
-                  disabled={isVerifying || !newPassword || newPassword.length < 6 || newPassword !== confirmPassword}
+                  disabled={isVerifying || !newPassword || newPassword.length < 8 || newPassword !== confirmPassword}
                   className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4 text-[#102C47]" />
@@ -553,10 +582,11 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                     <button
                       type="button"
                       onClick={handleResend}
-                      className="flex items-center gap-1.5 text-xs font-bold text-[#102C47] hover:text-[#C99B42] transition cursor-pointer"
+                      disabled={isSending}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#102C47] hover:text-[#C99B42] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-[#C99B42]" />
-                      <span>Resend Code</span>
+                      <RefreshCw className={`w-3.5 h-3.5 text-[#C99B42] ${isSending ? 'animate-spin' : ''}`} />
+                      <span>{isSending ? 'Sending...' : 'Resend Code'}</span>
                     </button>
                   )}
                 </div>

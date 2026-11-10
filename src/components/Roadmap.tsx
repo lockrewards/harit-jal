@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PhoneCall, MessageSquare, Palette, CheckCircle2, ShieldCheck, Truck, ChevronRight } from 'lucide-react';
+import { PhoneCall, MessageSquare, Palette, CheckCircle2, ShieldCheck, Truck } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 interface RoadmapProps {

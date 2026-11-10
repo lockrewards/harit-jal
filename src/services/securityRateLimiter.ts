@@ -1,11 +1,4 @@
 // ====================================================================
-// HARIT JAL™ (हरित जल) — MULTI-VECTOR SECURITY & RATE LIMITING SERVICE
-// Enforces strict 3-attempts limit and 24-hour lockouts across:
-// 1. Account / User ID (Email)
-// 2. Client Device (Device Fingerprint)
-// 3. Network IP Address (Client IP)
-// Covers both OTP verification AND Password authentication.
-// ====================================================================
 
 export interface SecurityBlockEntry {
   key: string;

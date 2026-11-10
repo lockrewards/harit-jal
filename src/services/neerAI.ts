@@ -5,13 +5,14 @@ import {
   NeerAction, 
   NeerSourceCitation,
   NeerAnalytics,
-  NeerAIConfig,
-  LeadRecord
+  NeerAIConfig
 } from '../types/neer';
 import { IntentDetector } from './intentDetector';
 import { AutomationService } from './automationService';
 import { KnowledgeBaseService } from './knowledgeBase';
 import { CustomerAuthService } from './customerAuth';
+import { StorageService } from './storage';
+import { isSupabaseConfigured, SupabaseService } from './supabase';
 
 const ANALYTICS_STORAGE_KEY = 'harit_jal_neer_analytics_v1';
 const AI_CONFIG_KEY = 'harit_jal_neer_config_v1';
@@ -28,7 +29,20 @@ export class NeerAIService {
   public static getAIConfig(): NeerAIConfig {
     try {
       const raw = localStorage.getItem(AI_CONFIG_KEY);
-      if (raw) return { ...DEFAULT_AI_CONFIG, ...JSON.parse(raw) };
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const clean: NeerAIConfig = {
+          provider: parsed.provider === 'gemini' ? 'gemini' : 'local',
+          modelName: typeof parsed.modelName === 'string' ? parsed.modelName : DEFAULT_AI_CONFIG.modelName,
+          temperature: typeof parsed.temperature === 'number' ? parsed.temperature : DEFAULT_AI_CONFIG.temperature,
+          strictRAGOnly: typeof parsed.strictRAGOnly === 'boolean' ? parsed.strictRAGOnly : DEFAULT_AI_CONFIG.strictRAGOnly,
+          allowGeneralQA: typeof parsed.allowGeneralQA === 'boolean' ? parsed.allowGeneralQA : DEFAULT_AI_CONFIG.allowGeneralQA,
+        };
+        if ('geminiApiKey' in parsed) {
+          localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(clean));
+        }
+        return clean;
+      }
     } catch {
       // Fallback
     }
@@ -37,7 +51,16 @@ export class NeerAIService {
 
   public static saveAIConfig(config: Partial<NeerAIConfig>): void {
     const current = this.getAIConfig();
-    const updated = { ...current, ...config };
+    const updated: NeerAIConfig = {
+      provider: config.provider === 'gemini' ? 'gemini' : current.provider,
+      modelName: config.modelName ?? current.modelName,
+      temperature: config.temperature ?? current.temperature,
+      strictRAGOnly: config.strictRAGOnly ?? current.strictRAGOnly,
+      allowGeneralQA: config.allowGeneralQA ?? current.allowGeneralQA,
+    };
+    if (config.provider === 'local') {
+      updated.provider = 'local';
+    }
     localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(updated));
   }
 
@@ -360,7 +383,8 @@ export class NeerAIService {
           phone: context.phone || 'Not provided',
           customerName: context.customerName || 'Valued Restaurant Partner',
           businessName: context.restaurantName || 'Pending Restaurant Name',
-          sourcePage: context.currentPage,
+          sourcePage: 'Mascot (Neer AI Chat)',
+          inquirySource: 'mascot',
           leadStatus: 'Incomplete',
           customerRequirements: 'Customer provided email address via Neer AI',
           conversationSummary: `Email captured: ${email}; awaiting Name and Mobile Number`,
@@ -371,14 +395,66 @@ export class NeerAIService {
         const hasMobileAndName = !!(context.phone && context.customerName && context.customerName !== 'Valued Restaurant Partner');
 
         if (hasMobileAndName) {
-          // Complete qualified lead!
+          // Complete qualified lead! Persist to Supabase consultations first
+          const consultationId = partialLeadFromEmail.id || `cons-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          let cloudSyncOk = true;
+          if (isSupabaseConfigured()) {
+            cloudSyncOk = await SupabaseService.syncConsultationLead({
+              id: consultationId,
+              restaurantName: context.restaurantName || 'Dining Establishment',
+              ownerName: context.customerName || 'Valued Restaurant Partner',
+              phone: context.phone!,
+              email,
+              city: context.location || 'India',
+              preferredTime: 'Anytime (Neer AI Consultation)',
+              bottleTypes: context.preferredSize ? [context.preferredSize] : [],
+              notes: '[Source: Mascot (Neer AI Chat)] Qualified lead captured via Neer AI conversational flow',
+              status: 'New',
+            });
+          }
+
+          if (isSupabaseConfigured() && !cloudSyncOk) {
+            return {
+              id: `msg-${Date.now()}`,
+              sender: 'assistant',
+              text: lang === 'hinglish' || lang === 'hindi'
+                ? `Dhanyawad **${context.customerName}** ji! Hamare cloud server par lead record karne me asuvidha hui hai. Kripya hamare helpline +91 62992 93497 par direct call karein.`
+                : `Thank you **${context.customerName}**! We experienced a temporary issue saving your consultation to our cloud server. Please call our concierge directly at +91 62992 93497.`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              language: lang,
+              suggestedActions: [
+                { label: 'Book a Consultation', action: 'book_call' },
+                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+              ],
+            };
+          }
+
+          const mascotBooking1 = StorageService.addBooking({
+            restaurantName: context.restaurantName || 'Dining Establishment',
+            ownerName: context.customerName || 'Valued Restaurant Partner',
+            phone: context.phone!,
+            email,
+            city: context.location || 'India',
+            bottleSize: (context.preferredSize as any) || '500ml',
+            bottleFormats: context.preferredSize ? [context.preferredSize] : ['500ml'],
+            monthlyVolume: (context.dailyVolume || 100) * 30,
+            capColor: 'royal_gold',
+            labelStyle: 'classic_luxury',
+            preferredDateTime: 'Anytime (Neer AI Consultation)',
+            notes: '[Source: Mascot (Neer AI Chat)] Qualified lead captured via Neer AI conversational flow',
+            source: 'mascot',
+          });
+          context.bookingId = mascotBooking1.id;
+
           const qualifiedLead = AutomationService.saveOrUpdateLead({
-            id: partialLeadFromEmail.id,
+            id: consultationId,
             conversationId: context.conversationId,
             email,
             phone: context.phone,
             customerName: context.customerName,
             businessName: context.restaurantName || 'Dining Establishment',
+            sourcePage: 'Mascot (Neer AI Chat)',
+            inquirySource: 'mascot',
             leadStatus: 'New',
             conversationSummary: `Qualified lead with full contact details (Name, Phone, Email)`,
           });
@@ -418,7 +494,58 @@ export class NeerAIService {
         if (hasValidName) {
           context.customerName = custName;
           // Both mandatory fields (Mobile Number + Name) are present!
+          const consultationId = context.currentLeadId || `cons-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          let cloudSyncOk = true;
+          if (isSupabaseConfigured()) {
+            cloudSyncOk = await SupabaseService.syncConsultationLead({
+              id: consultationId,
+              restaurantName: context.restaurantName || 'Dining Establishment',
+              ownerName: custName,
+              phone,
+              email: context.userEmail || 'inquiry@haritjal.in',
+              city: context.location || 'India',
+              preferredTime: 'Anytime (Neer AI Consultation)',
+              bottleTypes: context.preferredSize ? [context.preferredSize] : [],
+              notes: `[Source: Mascot (Neer AI Chat)] Mandatory contact details provided (Name: ${custName}, Phone: ${phone})`,
+              status: 'New',
+            });
+          }
+
+          if (isSupabaseConfigured() && !cloudSyncOk) {
+            return {
+              id: `msg-${Date.now()}`,
+              sender: 'assistant',
+              text: lang === 'hinglish' || lang === 'hindi'
+                ? `Dhanyawad **${custName}** ji! Hamare cloud server par lead record karne me asuvidha hui hai. Kripya helpline +91 62992 93497 par sampark karein.`
+                : `Thank you **${custName}**! We experienced a temporary issue saving your consultation to our cloud server. Please contact us directly at +91 62992 93497.`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              language: lang,
+              suggestedActions: [
+                { label: 'Book a Consultation', action: 'book_call' },
+                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+              ],
+            };
+          }
+
+          const mascotBooking2 = StorageService.addBooking({
+            restaurantName: context.restaurantName || 'Dining Establishment',
+            ownerName: custName,
+            phone,
+            email: context.userEmail || 'inquiry@haritjal.in',
+            city: context.location || 'India',
+            bottleSize: (context.preferredSize as any) || '500ml',
+            bottleFormats: context.preferredSize ? [context.preferredSize] : ['500ml'],
+            monthlyVolume: (context.dailyVolume || 100) * 30,
+            capColor: 'royal_gold',
+            labelStyle: 'classic_luxury',
+            preferredDateTime: 'Anytime (Neer AI Consultation)',
+            notes: `[Source: Mascot (Neer AI Chat)] Mandatory contact details provided (Name: ${custName}, Phone: ${phone})`,
+            source: 'mascot',
+          });
+          context.bookingId = mascotBooking2.id;
+
           const lead = AutomationService.saveOrUpdateLead({
+            id: consultationId,
             conversationId: context.conversationId,
             phone,
             customerName: custName,
@@ -431,7 +558,8 @@ export class NeerAIService {
             estimatedQuantity: context.dailyVolume ? `${context.dailyVolume} bottles/day` : '200 bottles/day',
             customerRequirements: 'Customer provided mandatory contact details (Name + Phone) via Neer AI',
             conversationSummary: `Qualified lead captured: ${custName} (${phone})`,
-            sourcePage: context.currentPage,
+            sourcePage: 'Mascot (Neer AI Chat)',
+            inquirySource: 'mascot',
             leadStatus: 'New',
           });
 
@@ -454,7 +582,8 @@ export class NeerAIService {
             customerName: 'Valued Restaurant Partner',
             email: context.userEmail || 'Not provided',
             businessName: context.restaurantName || 'Pending Restaurant Name',
-            sourcePage: context.currentPage,
+            sourcePage: 'Mascot (Neer AI Chat)',
+            inquirySource: 'mascot',
             leadStatus: 'Incomplete',
             customerRequirements: 'Customer shared phone number via Neer AI',
             conversationSummary: `Phone number captured: ${phone}; awaiting Customer Name`,
@@ -482,12 +611,65 @@ export class NeerAIService {
 
         if (context.phone && context.phone !== 'Not provided') {
           // Mobile number is already present! Both mandatory fields complete!
+          const consultationId = context.currentLeadId || `cons-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          let cloudSyncOk = true;
+          if (isSupabaseConfigured()) {
+            cloudSyncOk = await SupabaseService.syncConsultationLead({
+              id: consultationId,
+              restaurantName: context.restaurantName || 'Dining Establishment',
+              ownerName: nameProvided,
+              phone: context.phone,
+              email: context.userEmail || 'inquiry@haritjal.in',
+              city: context.location || 'India',
+              preferredTime: 'Anytime (Neer AI Consultation)',
+              bottleTypes: context.preferredSize ? [context.preferredSize] : [],
+              notes: `[Source: Mascot (Neer AI Chat)] Qualified lead captured: Name + Phone via Neer AI`,
+              status: 'New',
+            });
+          }
+
+          if (isSupabaseConfigured() && !cloudSyncOk) {
+            return {
+              id: `msg-${Date.now()}`,
+              sender: 'assistant',
+              text: lang === 'hinglish' || lang === 'hindi'
+                ? `Dhanyawad **${nameProvided}** ji! Hamare cloud server par lead record karne me asuvidha hui hai. Kripya helpline +91 62992 93497 par call karein.`
+                : `Thank you **${nameProvided}**! We experienced a temporary issue saving your consultation to our cloud server. Please call us at +91 62992 93497.`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              language: lang,
+              suggestedActions: [
+                { label: 'Book a Consultation', action: 'book_call' },
+                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+              ],
+            };
+          }
+
+          const mascotBooking3 = StorageService.addBooking({
+            restaurantName: context.restaurantName || 'Dining Establishment',
+            ownerName: nameProvided,
+            phone: context.phone,
+            email: context.userEmail || 'inquiry@haritjal.in',
+            city: context.location || 'India',
+            bottleSize: (context.preferredSize as any) || '500ml',
+            bottleFormats: context.preferredSize ? [context.preferredSize] : ['500ml'],
+            monthlyVolume: (context.dailyVolume || 100) * 30,
+            capColor: 'royal_gold',
+            labelStyle: 'classic_luxury',
+            preferredDateTime: 'Anytime (Neer AI Consultation)',
+            notes: `[Source: Mascot (Neer AI Chat)] Qualified lead captured: Name + Phone via Neer AI`,
+            source: 'mascot',
+          });
+          context.bookingId = mascotBooking3.id;
+
           const lead = AutomationService.saveOrUpdateLead({
+            id: consultationId,
             conversationId: context.conversationId,
             phone: context.phone,
             customerName: nameProvided,
             email: context.userEmail || 'Not provided',
             businessName: context.restaurantName || 'Dining Establishment',
+            sourcePage: 'Mascot (Neer AI Chat)',
+            inquirySource: 'mascot',
             leadStatus: 'New',
             conversationSummary: `Qualified lead captured: ${nameProvided} (${context.phone})`,
           });
@@ -528,6 +710,18 @@ export class NeerAIService {
       case 'business_name_provided':
         const bizName = entities.businessName || context.restaurantName || 'your restaurant';
         context.restaurantName = bizName;
+
+        if (context.currentLeadId) {
+          AutomationService.saveOrUpdateLead({
+            id: context.currentLeadId,
+            businessName: bizName,
+          });
+        }
+        if (context.bookingId) {
+          StorageService.updateBookingDetails(context.bookingId, {
+            restaurantName: bizName,
+          });
+        }
 
         if (!context.dailyVolume) {
           context.lastQuestionAsked = 'quantity';

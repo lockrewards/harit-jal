@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Eye, Droplets, Check, Filter, X, PhoneCall, Images, Info } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Droplets, X, PhoneCall, Images, Info } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
-import { useRouter } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 import { PRODUCT_COLLECTIONS, ProductBottle } from '../data/products';
 
 interface CollectionsPageProps {
@@ -10,18 +10,13 @@ interface CollectionsPageProps {
 }
 
 export const CollectionsPage: React.FC<CollectionsPageProps> = ({
-  onSelectProductForCustomizer,
+  onSelectProductForCustomizer: _onSelectProductForCustomizer,
   onOpenBookingModalWithProduct,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [previewProduct, setPreviewProduct] = useState<ProductBottle | null>(null);
   const [visibleCount, setVisibleCount] = useState<number>(3);
   const { navigate } = useRouter();
-
-  // Reset pagination when category changes
-  useEffect(() => {
-    setVisibleCount(3);
-  }, [activeCategory]);
 
   const categories = [
     { id: 'all', label: 'All Designs (6)' },
@@ -67,6 +62,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                 onClick={() => {
                   soundPlayer.playWaterDrop();
                   setActiveCategory(cat.id);
+                  setVisibleCount(3);
                 }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
                   activeCategory === cat.id

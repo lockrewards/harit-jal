@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PhoneCall, Menu, X, User } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
-import { useRouter, Link } from '../router/RouterContext';
+import { Link } from '../router/RouterContext';
+import { useRouter } from '../router/useRouter';
 import { CustomerAuthService } from '../services/customerAuth';
 
 interface NavbarProps {
@@ -115,23 +116,23 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBookingModal }) => {
           })}
         </nav>
 
-        {/* Right: Customer Login & Prominent Gold "Book a Call" CTA */}
+        {/* Right: Partner Login & Prominent Gold "Book a Call" CTA */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Customer / Restaurant Partner Login Button -> Opens dedicated Customer Page */}
+          {/* Partner / Business Login Button -> Opens dedicated Partner Login / Portal Page */}
           <button
             onClick={() => {
               soundPlayer.playWaterDrop();
               navigate('/login');
             }}
             className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full border border-[#C99B42]/50 hover:border-[#C99B42] bg-[#FFF9EF] hover:bg-[#F8F3E9] text-[#102C47] text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
-            title={customer ? `Logged in: ${customer.restaurantName}` : 'Customer / Restaurant Partner Login'}
+            title={customer ? `Logged in: ${customer.restaurantName}` : 'Partner / Business Login'}
           >
             <User className="w-3.5 h-3.5 text-[#C99B42]" />
             <span className="whitespace-nowrap hidden sm:inline">
-              {customer ? (customer.restaurantName.length > 12 ? `${customer.restaurantName.slice(0, 10)}...` : customer.restaurantName) : 'Login'}
+              {customer ? (customer.restaurantName.length > 12 ? `${customer.restaurantName.slice(0, 10)}...` : customer.restaurantName) : 'Partner Login'}
             </span>
             <span className="whitespace-nowrap sm:hidden">
-              {customer ? 'Account' : 'Login'}
+              {customer ? 'Partner' : 'Login'}
             </span>
           </button>
 
@@ -185,7 +186,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBookingModal }) => {
                 className="w-full py-2.5 rounded-full border border-[#C99B42]/60 bg-[#F8F3E9] text-[#102C47] text-center font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
               >
                 <User className="w-3.5 h-3.5 text-[#C99B42]" />
-                <span>{customer ? `My Account (${customer.restaurantName})` : 'Customer Login / Order Tracking'}</span>
+                <span>{customer ? `Partner Account (${customer.restaurantName})` : 'Partner Login / Order Tracking'}</span>
               </button>
 
               <button
