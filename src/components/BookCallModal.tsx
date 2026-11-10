@@ -347,7 +347,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
         if (authRes.success && authRes.customer) {
           createdAccount = true;
         } else if (authRes.success && authRes.requiresEmailConfirmation) {
-          accountFailNotice = 'Account created! Please check your email inbox and click the confirmation link before signing in.';
+          createdAccount = true;
         } else {
           // If Supabase registration fails, DO NOT create an orphaned local customer session!
           // Preserve consultation enquiry independently and notify user

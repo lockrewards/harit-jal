@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ShieldCheck, Clock, RefreshCw, KeyRound, Lock, Eye, EyeOff, AlertTriangle, ArrowLeft, CheckCircle2
+  ShieldCheck, Clock, RefreshCw, KeyRound, Lock, Eye, EyeOff, AlertTriangle, ArrowLeft, CheckCircle2, Clipboard
 } from 'lucide-react';
 import { OtpService } from '../services/otpService';
 import { soundPlayer } from '../services/sound';
@@ -177,6 +177,26 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
 
     const focusIdx = Math.min(pasted.length, 5);
     inputRefs.current[focusIdx]?.focus();
+  };
+
+  const handlePasteClipboard = async () => {
+    if (isBlocked || isOtpVerified) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const clean = text.replace(/\D/g, '').slice(0, 6);
+      if (clean.length > 0) {
+        const next = ['', '', '', '', '', ''];
+        for (let i = 0; i < clean.length; i++) {
+          next[i] = clean[i];
+        }
+        setDigits(next);
+        soundPlayer.playWaterDrop();
+        const focusIdx = Math.min(clean.length, 5);
+        inputRefs.current[focusIdx]?.focus();
+      }
+    } catch {
+      inputRefs.current[0]?.focus();
+    }
   };
 
   // Resend OTP action (async server dispatch via Edge Function)
@@ -567,6 +587,21 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                     />
                   ))}
                 </div>
+
+                {/* Paste from Clipboard Button */}
+                {typeof navigator !== 'undefined' && 'clipboard' in navigator && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={handlePasteClipboard}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#52652D] hover:text-[#102C47] transition cursor-pointer px-3 py-1 rounded-full bg-[#52652D]/10 hover:bg-[#52652D]/20 border border-[#52652D]/30 shadow-xs"
+                      title="Paste 6-digit OTP code from clipboard"
+                    >
+                      <Clipboard className="w-3.5 h-3.5 text-[#52652D]" />
+                      <span>Paste Code from Clipboard</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Resend & Security Policy Bar */}

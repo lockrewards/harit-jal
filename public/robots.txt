@@ -1,0 +1,13 @@
+# ====================================================================
+# HARIT JAL™ (हरित जल) — SEARCH ENGINE CRAWLER DIRECTIVES
+# Target: https://haritjal.in
+# ====================================================================
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Search Engine Sitemap Location
+Sitemap: https://haritjal.in/sitemap.xml
+

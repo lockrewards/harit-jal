@@ -1002,14 +1002,11 @@ export function buildOtpEmailContent(
                     <!-- PROMINENT BUTTON-STYLE COPY BOX -->
                     <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto 0 auto; border-collapse:separate; border-spacing:0;">
                       <tr>
-                        <td align="center" style="background-color:#1B4332; border:1px solid #102B1D; border-radius:8px; padding:10px 22px; box-shadow:0 2px 4px rgba(27,67,50,0.18);">
+                        <td align="center" style="background-color:#1B4332; border:1px solid #102B1D; border-radius:8px; padding:10px 24px; box-shadow:0 2px 4px rgba(27,67,50,0.18);">
                           <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="border-collapse:collapse;">
                             <tr>
-                              <td align="center" valign="middle" style="padding-right:10px;">
-                                <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700; color:#FFFFFF; letter-spacing:0.5px; text-transform:uppercase;">&#x1F4CB; Copy Code:</span>
-                              </td>
-                              <td align="center" valign="middle" style="background-color:#2D5A3F; border:1px solid #41594B; border-radius:6px; padding:5px 14px;">
-                                <span class="hj-otp-selectable" style="font-family:'Courier New',Courier,monospace; font-size:19px; font-weight:700; letter-spacing:3px; color:#FFFFFF; user-select:all; -webkit-user-select:all; -moz-user-select:all; cursor:pointer;">${safeOtp}</span>
+                              <td align="center" valign="middle">
+                                <span class="hj-otp-selectable" style="font-family:'Courier New',Courier,monospace; font-size:24px; font-weight:700; letter-spacing:4px; color:#FFFFFF; user-select:all; -webkit-user-select:all; -moz-user-select:all; cursor:text; display:inline-block; padding:2px 8px;">${safeOtp}</span>
                               </td>
                             </tr>
                           </table>
@@ -1017,7 +1014,7 @@ export function buildOtpEmailContent(
                       </tr>
                     </table>
                     <div class="hj-copy-desktop" style="margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:500; line-height:18px; color:#2D5A3F; text-align:center;">
-                      Select and copy your code. (Click code to select &bull; Ctrl+C)
+                      Select and copy your code. (Double-click code &bull; Ctrl+C)
                     </div>
                     <!--[if !mso]><!-->
                     <div class="hj-copy-mobile" style="display:none; max-height:0; overflow:hidden; mso-hide:all; margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:500; line-height:18px; color:#2D5A3F; text-align:center;">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldCheck, Clock, RefreshCw, AlertTriangle, CheckCircle2, Mail, Lock } from 'lucide-react';
+import { ShieldCheck, Clock, RefreshCw, AlertTriangle, CheckCircle2, Mail, Lock, Clipboard } from 'lucide-react';
 import { OtpService } from '../services/otpService';
 import { soundPlayer } from '../services/sound';
 
@@ -216,6 +216,28 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     }
   };
 
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const clean = text.replace(/\D/g, '').slice(0, 6);
+      if (clean.length > 0) {
+        const nextDigits = ['', '', '', '', '', ''];
+        for (let i = 0; i < clean.length; i++) {
+          nextDigits[i] = clean[i];
+        }
+        setDigits(nextDigits);
+        soundPlayer.playWaterDrop();
+        if (clean.length === 6) {
+          void triggerVerification(clean);
+        } else {
+          inputRefs.current[clean.length]?.focus();
+        }
+      }
+    } catch {
+      inputRefs.current[0]?.focus();
+    }
+  };
+
   // Trigger verify (authoritative Edge Function verification)
   const triggerVerification = async (codeToVerify?: string) => {
     if (isVerifying) return;
@@ -415,8 +437,8 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
             </button>
           </div>
 
-          {/* Resend Cooldown & Attempts Bar */}
-          <div className="flex items-center justify-between text-[11px] pt-1">
+          {/* Resend Cooldown, Paste Code & Attempts Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] pt-1">
             {/* 1-Minute Resend Timer */}
             <div>
               {resendSeconds > 0 ? (
@@ -434,6 +456,19 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Paste from Clipboard Button */}
+            {typeof navigator !== 'undefined' && 'clipboard' in navigator && (
+              <button
+                type="button"
+                onClick={handlePasteClipboard}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#52652D] hover:text-[#102C47] transition cursor-pointer px-2.5 py-0.5 rounded-full bg-[#52652D]/10 hover:bg-[#52652D]/20 border border-[#52652D]/30"
+                title="Paste 6-digit OTP code from clipboard"
+              >
+                <Clipboard className="w-3 h-3 text-[#52652D]" />
+                <span>Paste Code</span>
+              </button>
+            )}
 
             {/* 3 Attempts Badge */}
             <span className={`px-2 py-0.5 rounded-full font-medium ${

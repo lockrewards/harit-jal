@@ -161,10 +161,15 @@ export const CustomerAuthService = {
     const supabase = getSupabaseClient();
     if (supabase && isSupabaseConfigured()) {
       try {
+        const redirectUrl = typeof window !== 'undefined'
+          ? `${window.location.origin}/track`
+          : 'https://haritjal.in/track';
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: cleanPassword,
           options: {
+            emailRedirectTo: redirectUrl,
             data: {
               restaurant_name: data.restaurantName.trim(),
               owner_name: data.ownerName.trim(),
@@ -181,11 +186,17 @@ export const CustomerAuthService = {
         }
 
         if (authData.user) {
-          if (!authData.session) {
-            return {
-              success: true,
-              requiresEmailConfirmation: true,
-            };
+          let session = authData.session;
+          if (!session) {
+            try {
+              const { data: signInData } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: cleanPassword,
+              });
+              session = signInData?.session || null;
+            } catch {
+              // Ignore background sign-in attempt
+            }
           }
 
           const customerProfile: CustomerAccount = {
@@ -202,9 +213,16 @@ export const CustomerAuthService = {
           await SupabaseService.syncCustomer(customerProfile);
 
           const sanitized = sanitizeCustomer(customerProfile);
-          localStorage.setItem(STORAGE_KEYS.CURRENT_CUSTOMER, JSON.stringify(sanitized));
-          this.notifyChange();
-          return { success: true, customer: sanitized };
+          if (session) {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_CUSTOMER, JSON.stringify(sanitized));
+            this.notifyChange();
+          }
+
+          return {
+            success: true,
+            customer: sanitized,
+            requiresEmailConfirmation: !session,
+          };
         }
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
