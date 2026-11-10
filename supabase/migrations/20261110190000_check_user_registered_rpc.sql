@@ -62,77 +62,18 @@ $$;
 GRANT EXECUTE ON FUNCTION public.check_user_registered(TEXT, TEXT) TO anon, authenticated, service_role;
 
 -- ====================================================================
--- HARIT JAL™ (हरित जल) — RPC: resolve_phone_login_email
--- Purpose: Safely resolves a 10-digit Indian mobile number to the registered
--- user's email address so that login can proceed via native Supabase GoTrue Auth.
+-- 1. Ensure auth_user_id column exists on staff_users
 -- ====================================================================
-
-CREATE OR REPLACE FUNCTION public.resolve_phone_login_email(
-    p_phone TEXT,
-    p_account_type TEXT DEFAULT 'partner'
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-DECLARE
-    v_clean_phone TEXT := REGEXP_REPLACE(COALESCE(p_phone, ''), '\D', '', 'g');
-    v_digits10 TEXT;
-    v_email TEXT := NULL;
-    v_is_blocked BOOLEAN := FALSE;
-BEGIN
-    IF LENGTH(v_clean_phone) >= 10 THEN
-        v_digits10 := RIGHT(v_clean_phone, 10);
-    ELSE
-        RETURN jsonb_build_object('found', false, 'error', 'Invalid mobile number');
-    END IF;
-
-    -- 1. Check in public.customers table (for partners / customers)
-    IF LOWER(COALESCE(p_account_type, 'partner')) = 'partner' THEN
-        SELECT email INTO v_email
-        FROM public.customers
-        WHERE RIGHT(REGEXP_REPLACE(phone, '\D', '', 'g'), 10) = v_digits10
-        LIMIT 1;
-    END IF;
-
-    -- 2. Check in public.staff_users table (for admin / staff, or fallback)
-    IF v_email IS NULL THEN
-        SELECT email, is_blocked INTO v_email, v_is_blocked
-        FROM public.staff_users
-        WHERE RIGHT(REGEXP_REPLACE(phone, '\D', '', 'g'), 10) = v_digits10
-        LIMIT 1;
-
-        IF v_is_blocked THEN
-            RETURN jsonb_build_object(
-                'found', true,
-                'is_blocked', true,
-                'error', 'Account has been blocked or suspended by Administrator.'
-            );
-        END IF;
-    END IF;
-
-    -- 3. If found, return clean email
-    IF v_email IS NOT NULL AND v_email <> '' THEN
-        RETURN jsonb_build_object(
-            'found', true,
-            'email', LOWER(TRIM(v_email)),
-            'is_blocked', false
-        );
-    END IF;
-
-    RETURN jsonb_build_object('found', false);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.resolve_phone_login_email(TEXT, TEXT) TO anon, authenticated, service_role;
+ALTER TABLE public.staff_users ADD COLUMN IF NOT EXISTS auth_user_id UUID;
 
 -- ====================================================================
--- HARIT JAL™ (हरित जल) — Fix protect_root_super_admin() Trigger
--- Purpose: Allow both 'admin' and 'super_admin' roles so that setting
--- role = 'admin' does not trigger downgraded exception.
+-- 2. Temporarily drop trigger to allow clean admin data reconciliation
 -- ====================================================================
+DROP TRIGGER IF EXISTS trg_protect_root_super_admin ON public.staff_users;
 
+-- ====================================================================
+-- 3. Update protect_root_super_admin function to accept both 'admin' and 'super_admin'
+-- ====================================================================
 CREATE OR REPLACE FUNCTION public.protect_root_super_admin()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -163,11 +104,8 @@ END;
 $$;
 
 -- ====================================================================
--- HARIT JAL™ (हरित जल) — Fix Staff Read Own Record RLS Policy
--- Purpose: Remove AAL2 deadlock so authenticated staff can read their
--- own record at AAL1 to determine TOTP / MFA requirements.
+-- 4. Fix Staff Read Own Record RLS Policy (removes AAL2 deadlock at login)
 -- ====================================================================
-
 DROP POLICY IF EXISTS "Staff can read own record" ON public.staff_users;
 CREATE POLICY "Staff can read own record"
     ON public.staff_users FOR SELECT TO authenticated
@@ -183,9 +121,8 @@ CREATE POLICY "Staff can read own record"
     );
 
 -- ====================================================================
--- HARIT JAL™ (हरित जल) — Link info@haritjal.in in auth.users and staff_users
+-- 5. Link info@haritjal.in in auth.users and staff_users
 -- ====================================================================
-
 DO $$
 DECLARE
     v_user_id UUID;
@@ -193,7 +130,7 @@ BEGIN
     SELECT id INTO v_user_id FROM auth.users WHERE LOWER(email) = 'info@haritjal.in' LIMIT 1;
     
     IF v_user_id IS NOT NULL THEN
-        -- Set app_metadata in auth.users
+        -- A. Update app_metadata in auth.users
         UPDATE auth.users
         SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(
             'role', 'admin',
@@ -203,7 +140,12 @@ BEGIN
         )
         WHERE id = v_user_id;
 
-        -- Ensure staff_users has the corresponding record
+        -- B. If another row was previously root, clear its root flag so unique index doesn't conflict
+        UPDATE public.staff_users
+        SET is_root_super_admin = false
+        WHERE LOWER(email) <> 'info@haritjal.in' AND is_root_super_admin = true;
+
+        -- C. Update or Insert info@haritjal.in in public.staff_users
         IF EXISTS (SELECT 1 FROM public.staff_users WHERE LOWER(email) = 'info@haritjal.in') THEN
             UPDATE public.staff_users
             SET auth_user_id = v_user_id,
@@ -249,5 +191,73 @@ BEGIN
     END IF;
 END $$;
 
+-- ====================================================================
+-- 6. Re-attach trigger
+-- ====================================================================
+DROP TRIGGER IF EXISTS trg_protect_root_super_admin ON public.staff_users;
+CREATE TRIGGER trg_protect_root_super_admin
+    BEFORE UPDATE OR DELETE ON public.staff_users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.protect_root_super_admin();
 
+-- ====================================================================
+-- 7. RPC: resolve_phone_login_email
+-- ====================================================================
+CREATE OR REPLACE FUNCTION public.resolve_phone_login_email(
+    p_phone TEXT,
+    p_account_type TEXT DEFAULT 'partner'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_clean_phone TEXT := REGEXP_REPLACE(COALESCE(p_phone, ''), '\D', '', 'g');
+    v_digits10 TEXT;
+    v_email TEXT := NULL;
+    v_is_blocked BOOLEAN := FALSE;
+BEGIN
+    IF LENGTH(v_clean_phone) >= 10 THEN
+        v_digits10 := RIGHT(v_clean_phone, 10);
+    ELSE
+        RETURN jsonb_build_object('found', false, 'error', 'Invalid mobile number');
+    END IF;
 
+    -- Check in customers table
+    IF LOWER(COALESCE(p_account_type, 'partner')) = 'partner' THEN
+        SELECT email INTO v_email
+        FROM public.customers
+        WHERE RIGHT(REGEXP_REPLACE(phone, '\D', '', 'g'), 10) = v_digits10
+        LIMIT 1;
+    END IF;
+
+    -- Check in staff_users table
+    IF v_email IS NULL THEN
+        SELECT email, is_blocked INTO v_email, v_is_blocked
+        FROM public.staff_users
+        WHERE RIGHT(REGEXP_REPLACE(phone, '\D', '', 'g'), 10) = v_digits10
+        LIMIT 1;
+
+        IF v_is_blocked THEN
+            RETURN jsonb_build_object(
+                'found', true,
+                'is_blocked', true,
+                'error', 'Account has been blocked or suspended by Administrator.'
+            );
+        END IF;
+    END IF;
+
+    IF v_email IS NOT NULL AND v_email <> '' THEN
+        RETURN jsonb_build_object(
+            'found', true,
+            'email', LOWER(TRIM(v_email)),
+            'is_blocked', false
+        );
+    END IF;
+
+    RETURN jsonb_build_object('found', false);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.resolve_phone_login_email(TEXT, TEXT) TO anon, authenticated, service_role;
