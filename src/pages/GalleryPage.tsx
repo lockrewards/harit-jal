@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 import { GalleryService, GalleryItem } from '../services/galleryService';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
 
 interface GalleryPageProps {
   onOpenBookingModalWithProduct: (productDetails: {
@@ -169,19 +170,11 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
                     setSelectedPhotoModal(item);
                   }}
                 >
-                  <img
+                  <OptimizedImage
                     src={item.image}
                     alt={item.title}
                     loading="lazy"
                     decoding="async"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      if (target.src.endsWith('.jpg')) {
-                        target.src = target.src.replace(/\.jpg$/, '.png');
-                      } else if (target.src.endsWith('.png')) {
-                        target.src = target.src.replace(/\.png$/, '.jpg');
-                      }
-                    }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
 
@@ -337,34 +330,27 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onOpenBookingModalWith
       {/* High-Resolution Photo Lightbox Modal */}
       {selectedPhotoModal && (
         <div 
-          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-4 cursor-pointer"
           onClick={() => setSelectedPhotoModal(null)}
         >
           <button
             type="button"
             onClick={() => setSelectedPhotoModal(null)}
-            className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black flex items-center justify-center transition cursor-pointer"
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black flex items-center justify-center transition cursor-pointer z-30"
             title="Close Lightbox"
+            aria-label="Close photo preview"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div 
-            className="relative max-w-2xl max-h-[85vh] flex flex-col items-center justify-center space-y-4 cursor-default"
+            className="relative w-full max-w-2xl max-h-[88dvh] overflow-y-auto flex flex-col items-center justify-center space-y-3 sm:space-y-4 p-2 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
+            <OptimizedImage
               src={selectedPhotoModal.image}
               alt={selectedPhotoModal.title}
-              onError={(e) => {
-                const target = e.currentTarget;
-                if (target.src.endsWith('.jpg')) {
-                  target.src = target.src.replace(/\.jpg$/, '.png');
-                } else if (target.src.endsWith('.png')) {
-                  target.src = target.src.replace(/\.png$/, '.jpg');
-                }
-              }}
-              className="max-h-[65vh] w-auto object-contain rounded-2xl shadow-2xl filter drop-shadow-[0_20px_50px_rgba(201,155,66,0.3)]"
+              className="max-h-[55dvh] sm:max-h-[65dvh] w-auto max-w-full object-contain rounded-2xl shadow-2xl filter drop-shadow-[0_20px_50px_rgba(201,155,66,0.3)]"
             />
 
             <div className="text-center text-white space-y-1">

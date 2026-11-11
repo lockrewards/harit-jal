@@ -40,7 +40,7 @@ export const NeerChatWindow: React.FC<NeerChatWindowProps> = ({
     return () => clearInterval(interval);
   }, []);
   return (
-    <div className="pointer-events-auto w-[92vw] sm:w-[390px] h-[540px] max-h-[80vh] flex flex-col rounded-3xl bg-[#F8F3E9] border border-[#C99B42]/45 shadow-[0_20px_50px_rgba(16,44,71,0.22)] backdrop-blur-xl overflow-hidden font-manrope text-[#102C47] animate-fadeIn relative">
+    <div className="pointer-events-auto w-[calc(100vw-2rem)] sm:w-[390px] max-w-[390px] h-[540px] max-h-[calc(100dvh-5.5rem)] flex flex-col rounded-2xl sm:rounded-3xl bg-[#F8F3E9] border border-[#C99B42]/45 shadow-[0_20px_50px_rgba(16,44,71,0.22)] backdrop-blur-xl overflow-hidden font-manrope text-[#102C47] animate-fadeIn relative">
       
       {/* Top Header */}
       <div className="px-4 py-3 bg-[#FFF9EF] border-b border-[#C99B42]/30 flex items-center justify-between shrink-0">

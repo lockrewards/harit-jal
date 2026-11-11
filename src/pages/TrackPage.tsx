@@ -18,6 +18,8 @@ import { CustomerDeleteAccountModal } from '../components/CustomerDeleteAccountM
 import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
 import { PasswordCriteriaChecklist, validatePasswordCriteria } from '../components/auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
+import { HaritJalLoader } from '../components/ui/HaritJalLoader';
+import { LoadingButton } from '../components/ui/LoadingButton';
 
 const getMinDateTimeString = () => {
   const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -108,6 +110,8 @@ export const TrackPage: React.FC = () => {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const getRate = (size: typeof orderSize) => {
     if (size === '750ml_glass') return 24;
@@ -120,37 +124,42 @@ export const TrackPage: React.FC = () => {
   const totalCost = totalBottles * getRate(orderSize);
 
   const refreshData = async (email: string) => {
+    setIsLoadingData(true);
     const cleanEmail = email.trim().toLowerCase();
 
-    if (isSupabaseConfigured()) {
-      const [cloudOrders, cloudBookings] = await Promise.all([
-        SupabaseService.fetchOrdersForCustomer(cleanEmail),
-        SupabaseService.fetchConsultationsForCustomer(cleanEmail),
-      ]);
+    try {
+      if (isSupabaseConfigured()) {
+        const [cloudOrders, cloudBookings] = await Promise.all([
+          SupabaseService.fetchOrdersForCustomer(cleanEmail),
+          SupabaseService.fetchConsultationsForCustomer(cleanEmail),
+        ]);
 
-      if (cloudOrders) {
-        CustomerAuthService.setOrdersCache(cloudOrders);
-        setOrders(cloudOrders);
-      } else {
-        setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+        if (cloudOrders) {
+          CustomerAuthService.setOrdersCache(cloudOrders);
+          setOrders(cloudOrders);
+        } else {
+          setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+        }
+
+        if (cloudBookings) {
+          setMyInquiries(cloudBookings);
+        } else {
+          setMyInquiries(
+            StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
+          );
+        }
+        return;
       }
 
-      if (cloudBookings) {
-        setMyInquiries(cloudBookings);
-      } else {
-        setMyInquiries(
-          StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
-        );
-      }
-      return;
+      const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
+      setOrders(customerOrders);
+
+      const allInquiries = StorageService.getBookings();
+      const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
+      setMyInquiries(matched);
+    } finally {
+      setIsLoadingData(false);
     }
-
-    const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
-    setOrders(customerOrders);
-
-    const allInquiries = StorageService.getBookings();
-    const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
-    setMyInquiries(matched);
   };
 
   useEffect(() => {
@@ -361,47 +370,53 @@ export const TrackPage: React.FC = () => {
     if (!currentUser) return;
 
     setOrderError(null);
+    setIsPlacingOrder(true);
     soundPlayer.playWaterDrop();
-    const newOrder = CustomerAuthService.placeOrder({
-      ownerEmail: currentUser.email,
-      restaurantName: currentUser.restaurantName,
-      bottleSize: orderSize,
-      caseCount: orderCases,
-      bottlesTotal: totalBottles,
-      ratePerBottle: getRate(orderSize),
-      totalAmount: totalCost,
-      deliveryAddress,
-    });
 
-    const orderSynced = await SupabaseService.syncOrder({
-      ...newOrder,
-      ownerName: currentUser.ownerName,
-      phone: currentUser.phone,
-    });
+    try {
+      const newOrder = CustomerAuthService.placeOrder({
+        ownerEmail: currentUser.email,
+        restaurantName: currentUser.restaurantName,
+        bottleSize: orderSize,
+        caseCount: orderCases,
+        bottlesTotal: totalBottles,
+        ratePerBottle: getRate(orderSize),
+        totalAmount: totalCost,
+        deliveryAddress,
+      });
 
-    if (isSupabaseConfigured() && !orderSynced) {
-      CustomerAuthService.setOrdersCache(
-        CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
-      );
-      soundPlayer.playBubblePop();
-      setOrderError(
-        'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
-      );
-      return;
+      const orderSynced = await SupabaseService.syncOrder({
+        ...newOrder,
+        ownerName: currentUser.ownerName,
+        phone: currentUser.phone,
+      });
+
+      if (isSupabaseConfigured() && !orderSynced) {
+        CustomerAuthService.setOrdersCache(
+          CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
+        );
+        soundPlayer.playBubblePop();
+        setOrderError(
+          'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
+        );
+        return;
+      }
+
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#C99B42', '#52652D', '#102C47'],
+      });
+
+      soundPlayer.playSuccessChime();
+      setOrderSuccess(`Order ${newOrder.id} confirmed! Scheduled for cellar delivery.`);
+      await refreshData(currentUser.email);
+      setActiveTab('track');
+      setTimeout(() => setOrderSuccess(null), 5000);
+    } finally {
+      setIsPlacingOrder(false);
     }
-
-    confetti({
-      particleCount: 80,
-      spread: 60,
-      origin: { y: 0.6 },
-      colors: ['#C99B42', '#52652D', '#102C47'],
-    });
-
-    soundPlayer.playSuccessChime();
-    setOrderSuccess(`Order ${newOrder.id} confirmed! Scheduled for cellar delivery.`);
-    await refreshData(currentUser.email);
-    setActiveTab('track');
-    setTimeout(() => setOrderSuccess(null), 5000);
   };
 
   const handleScheduleCallSubmit = async (e: React.FormEvent) => {
@@ -650,7 +665,9 @@ export const TrackPage: React.FC = () => {
             {/* TAB 1: TRACK ORDERS */}
             {activeTab === 'track' && (
               <div className="space-y-4">
-                {orders.length === 0 ? (
+                {isLoadingData && orders.length === 0 ? (
+                  <HaritJalLoader size="md" message="Loading your dining orders..." variant="inline" />
+                ) : orders.length === 0 ? (
                   <div className="p-8 text-center rounded-2xl bg-[#F8F3E9] border border-[#C99B42]/20 space-y-3">
                     <Package className="w-10 h-10 text-[#C99B42] mx-auto" />
                     <h3 className="text-base font-bold text-[#102C47]">No Orders Placed Yet</h3>
@@ -691,7 +708,7 @@ export const TrackPage: React.FC = () => {
                           <span className="text-[#52652D] font-bold">{ord.status}</span>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center text-[10px] sm:text-xs">
+                        <div className="grid grid-cols-2 min-[520px]:grid-cols-4 gap-1.5 sm:gap-2 text-center text-[10px] sm:text-xs">
                           <div className="p-2 rounded-xl bg-[#52652D]/15 border border-[#52652D] text-[#52652D] font-bold">
                             <CheckCircle2 className="w-3.5 h-3.5 mx-auto mb-1 text-[#52652D]" />
                             <span>1. Confirmed</span>
@@ -807,13 +824,16 @@ export const TrackPage: React.FC = () => {
                   />
                 </div>
 
-                <button
+                <LoadingButton
                   type="submit"
-                  className="btn-gold-luxury w-full py-3.5 px-6 rounded-full font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  isLoading={isPlacingOrder}
+                  loadingText="Scheduling Cellar Dispatch..."
+                  variant="gold"
+                  className="w-full py-3.5 px-6 rounded-full font-bold text-sm shadow-md"
+                  leftIcon={<Truck className="w-4 h-4 text-[#102C47]" />}
                 >
-                  <Truck className="w-4 h-4 text-[#102C47]" />
-                  <span>Confirm Order & Schedule Cellar Dispatch</span>
-                </button>
+                  Confirm Order & Schedule Cellar Dispatch
+                </LoadingButton>
               </form>
             )}
 
@@ -1649,7 +1669,7 @@ export const TrackPage: React.FC = () => {
             setCurrentUser(updated);
             void refreshData(updated.email);
           }}
-          onDeletionScheduled={(dueAt) => {
+          onDeletionScheduled={(_dueAt) => {
             setShowProfileSettings(false);
             setCurrentUser(null);
             setDeletionNotice(
@@ -1666,7 +1686,7 @@ export const TrackPage: React.FC = () => {
           isOpen={showDeleteAccountModal}
           customer={currentUser}
           onClose={() => setShowDeleteAccountModal(false)}
-          onDeletionScheduled={(dueAt) => {
+          onDeletionScheduled={(_dueAt) => {
             setShowDeleteAccountModal(false);
             setCurrentUser(null);
             setDeletionNotice(

@@ -189,16 +189,16 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-lg bg-[#FFF9EF] border border-[#C99B42]/50 rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-lg bg-[#FFF9EF] border border-[#C99B42]/50 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47] flex flex-col max-h-[92dvh]">
         {/* Header */}
-        <div className="p-5 bg-[#F8F3E9] border-b border-[#C99B42]/30 flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-[#F8F3E9] border-b border-[#C99B42]/30 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-[#102C47] text-[#C99B42] flex items-center justify-center shadow-xs">
+            <div className="w-9 h-9 rounded-full bg-[#102C47] text-[#C99B43] flex items-center justify-center shadow-xs shrink-0">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold font-playfair text-[#102C47]">
+              <h2 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">
                 Super Admin Security &amp; Profile
               </h2>
               <p className="text-[11px] text-[#77766F]">
@@ -209,14 +209,14 @@ export const AdminProfileSettingsModal: React.FC<AdminProfileSettingsModalProps>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#102C47]/10 text-[#77766F] hover:text-[#102C47] transition cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-[#102C47]/10 text-[#77766F] hover:text-[#102C47] transition cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-5 space-y-5 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />

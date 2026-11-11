@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, X, Lock, Eye, EyeOff, ShieldAlert, Clock } from 'lucide-react';
+import { Trash2, AlertTriangle, X, Lock, Eye, EyeOff, Clock } from 'lucide-react';
 import { CustomerAccount } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
 import { soundPlayer } from '../services/sound';
+import { LoadingButton } from './ui/LoadingButton';
 
 interface CustomerDeleteAccountModalProps {
   isOpen: boolean;
@@ -55,20 +56,20 @@ export const CustomerDeleteAccountModal: React.FC<CustomerDeleteAccountModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#102C47]/80 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-md bg-[#FFF9EF] border border-red-300 rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#102C47]/80 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-md max-h-[92dvh] flex flex-col bg-[#FFF9EF] border border-red-300 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47]">
         
         {/* Header */}
-        <div className="p-5 bg-red-50 border-b border-red-200 flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-red-50 border-b border-red-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xs">
+            <div className="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <Trash2 className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold font-playfair text-red-950">
+              <h2 className="text-sm sm:text-base md:text-lg font-bold font-playfair text-red-950">
                 Delete Account (अकाउंट डिलीट करें)
               </h2>
-              <p className="text-[11px] text-red-700">
+              <p className="text-[11px] text-red-700 truncate max-w-[200px] sm:max-w-xs">
                 {customer.restaurantName} ({customer.email})
               </p>
             </div>
@@ -77,14 +78,14 @@ export const CustomerDeleteAccountModal: React.FC<CustomerDeleteAccountModalProp
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-red-100 text-gray-500 hover:text-red-900 transition cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-red-100 text-gray-500 hover:text-red-900 transition cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Body */}
-        <form onSubmit={handleConfirmDelete} className="p-5 space-y-4">
+        <form onSubmit={handleConfirmDelete} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           
           {error && (
             <div className="p-3 rounded-xl bg-red-100/80 border border-red-300 text-red-800 text-xs flex items-start gap-2">
@@ -155,14 +156,17 @@ export const CustomerDeleteAccountModal: React.FC<CustomerDeleteAccountModalProp
               वापस जाएं (Keep Account)
             </button>
 
-            <button
+            <LoadingButton
               type="submit"
-              disabled={isSubmitting || !password.trim()}
-              className="w-full sm:w-1/2 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+              isLoading={isSubmitting}
+              loadingText="प्रोसेसिंग..."
+              disabled={!password.trim()}
+              variant="danger"
+              className="w-full sm:w-1/2 py-2.5 rounded-full font-bold text-xs"
+              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'प्रोसेसिंग...' : '24 घंटे में डिलीट करें'}</span>
-            </button>
+              24 घंटे में डिलीट करें
+            </LoadingButton>
           </div>
 
         </form>

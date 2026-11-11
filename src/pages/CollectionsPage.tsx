@@ -3,6 +3,7 @@ import { ArrowRight, Droplets, X, PhoneCall, Images, Info } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 import { useRouter } from '../router/useRouter';
 import { PRODUCT_COLLECTIONS, ProductBottle } from '../data/products';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
 
 interface CollectionsPageProps {
   onSelectProductForCustomizer: (productId: string) => void;
@@ -86,7 +87,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
               <div>
                 {/* Product Photograph Container */}
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
-                  <img
+                  <OptimizedImage
                     src={bottle.image}
                     alt={bottle.title}
                     loading="lazy"
@@ -194,26 +195,27 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
       {/* Product Detail Modal */}
       {previewProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-[#102C47]/70 backdrop-blur-md animate-fadeIn">
-          <div className="relative w-full max-w-2xl bg-[#FFF9EF] border border-[#C99B42]/40 rounded-3xl overflow-hidden shadow-2xl flex flex-col text-[#102C47]">
+          <div className="relative w-full max-w-2xl max-h-[90dvh] bg-[#FFF9EF] border border-[#C99B42]/40 rounded-3xl overflow-hidden shadow-2xl flex flex-col text-[#102C47]">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#C99B42]/20 bg-[#F8F3E9]">
+            <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-[#C99B42]/20 bg-[#F8F3E9] shrink-0">
               <div>
-                <h3 className="font-bold font-playfair text-lg text-[#102C47]">{previewProduct.title}</h3>
+                <h3 className="font-bold font-playfair text-base sm:text-lg text-[#102C47]">{previewProduct.title}</h3>
                 <span className="text-xs text-[#52652D] font-semibold">{previewProduct.subtitle}</span>
               </div>
               <button
                 onClick={() => setPreviewProduct(null)}
                 className="p-1.5 rounded-full hover:bg-[#102C47]/10 text-[#77766F] hover:text-[#102C47] transition cursor-pointer"
+                aria-label="Close product modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-100 shadow-inner">
-                <img
+                <OptimizedImage
                   src={previewProduct.image}
                   alt={previewProduct.title}
                   className="w-full h-full object-cover"

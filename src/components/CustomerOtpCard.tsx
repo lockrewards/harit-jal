@@ -5,6 +5,7 @@ import {
 import { OtpService } from '../services/otpService';
 import { PasswordCriteriaChecklist, validatePasswordCriteria } from './auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
+import { LoadingButton } from './ui/LoadingButton';
 
 interface CustomerOtpCardProps {
   email: string;
@@ -566,16 +567,17 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
 
               {/* Save New Password Action Button */}
               <div className="pt-2 space-y-2">
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={isVerifying || !newPassword || !validatePasswordCriteria(newPassword).isValid || newPassword !== confirmPassword}
-                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  isLoading={isVerifying}
+                  loadingText="Updating Password..."
+                  disabled={!newPassword || !validatePasswordCriteria(newPassword).isValid || newPassword !== confirmPassword}
+                  variant="gold"
+                  className="w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md"
+                  leftIcon={<Lock className="w-4 h-4 text-[#102C47]" />}
                 >
-                  <Lock className="w-4 h-4 text-[#102C47]" />
-                  <span>
-                    {isVerifying ? 'Updating Password...' : 'Save New Password & Sign In →'}
-                  </span>
-                </button>
+                  Save New Password & Sign In →
+                </LoadingButton>
 
                 {onBackToLogin && (
                   <button
@@ -599,7 +601,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                 <label className="block text-xs font-bold text-[#102C47] mb-2 text-center">
                   Enter 6-Digit Verification Code
                 </label>
-                <div className="flex justify-center items-center gap-2 sm:gap-2.5">
+                <div className="flex justify-center items-center gap-1 min-[360px]:gap-2 sm:gap-2.5">
                   {digits.map((digit, index) => (
                     <input
                       key={index}
@@ -611,7 +613,7 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                       onChange={(e) => handleDigitChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
                       onPaste={handlePaste}
-                      className={`w-10 h-12 sm:w-12 sm:h-14 text-center font-mono text-xl sm:text-2xl font-bold rounded-xl border transition-all focus:outline-none ${
+                      className={`w-8 min-[360px]:w-10 sm:w-12 h-11 min-[360px]:h-12 sm:h-14 text-center font-mono text-lg min-[360px]:text-xl sm:text-2xl font-bold rounded-lg sm:rounded-xl border transition-all focus:outline-none ${
                         digit 
                           ? 'bg-[#FFF9EF] border-[#C99B42] text-[#102C47] shadow-inner' 
                           : 'bg-white border-[#C99B42]/40 text-[#102C47] focus:border-[#102C47] focus:ring-2 focus:ring-[#C99B42]/20'
@@ -672,20 +674,19 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
 
               {/* Step 1 Submit Action Button: VERIFY OTP CODE */}
               <div className="pt-2 space-y-2">
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={isVerifying || digits.join('').length !== 6 || validitySeconds <= 0}
-                  className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  isLoading={isVerifying}
+                  loadingText="Verifying Security Token..."
+                  disabled={digits.join('').length !== 6 || validitySeconds <= 0}
+                  variant="gold"
+                  className="w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md"
+                  leftIcon={<ShieldCheck className="w-4 h-4 text-[#102C47]" />}
                 >
-                  <ShieldCheck className="w-4 h-4 text-[#102C47]" />
-                  <span>
-                    {isVerifying 
-                      ? 'Verifying Security Token...' 
-                      : purpose === 'signup' 
-                        ? 'Verify & Complete Registration' 
-                        : 'Verify OTP Code →'}
-                  </span>
-                </button>
+                  {purpose === 'signup' 
+                    ? 'Verify & Complete Registration' 
+                    : 'Verify OTP Code →'}
+                </LoadingButton>
 
                 <button
                   type="button"

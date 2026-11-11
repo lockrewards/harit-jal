@@ -8,6 +8,7 @@ import { UnifiedAuthService, UnifiedAuthResult } from '../../services/unifiedAut
 import { isValidIndianMobile, isPotentialPhoneNumber } from '../../services/phoneUtils';
 import { AdminUser } from '../../types';
 import { soundPlayer } from '../../services/sound';
+import { LoadingButton } from '../ui/LoadingButton';
 
 interface UnifiedLoginCardProps {
   initialAccountType?: HaritJalAccountType;
@@ -19,6 +20,25 @@ interface UnifiedLoginCardProps {
   onRequireFirstTimeSetup?: (user: AdminUser) => void;
   onRequireMfaEnrollment?: (user: AdminUser) => void;
   className?: string;
+}
+
+function sanitizeUserFacingError(rawMsg: string | undefined): string {
+  if (!rawMsg) return 'गलत ईमेल/मोबाइल या पासवर्ड। कृपया पुनः जाँचें। (Authentication failed.)';
+  const lower = rawMsg.toLowerCase();
+  if (
+    lower.includes('non-2xx') ||
+    lower.includes('edge function') ||
+    lower.includes('status code') ||
+    lower.includes('database query failure') ||
+    lower.includes('pgrst') ||
+    lower.includes('column') ||
+    lower.includes('relation') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('syntax error')
+  ) {
+    return 'गलत मोबाइल नंबर या पासवर्ड। कृपया सही जानकारी दर्ज करें या अपनी रजिस्टर्ड ईमेल आईडी से लॉगिन करें। (Invalid credentials. Please verify your details or sign in using your registered email.)';
+  }
+  return rawMsg;
 }
 
 export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
@@ -128,20 +148,13 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
         soundPlayer.playSuccessChime();
         onSuccess(res);
       } else {
-        let displayErr = res.error || 'गलत ईमेल/मोबाइल या पासवर्ड। कृपया पुनः जाँचें। (Authentication failed.)';
-        if (displayErr.includes('non-2xx') || displayErr.includes('Edge Function')) {
-          displayErr = 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल आईडी से लॉगिन करें। (Invalid mobile number or password.)';
-        }
-        setError(displayErr);
+        setError(sanitizeUserFacingError(res.error));
         soundPlayer.playBubblePop();
       }
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
-      const cleanMsg = msg.includes('non-2xx') || msg.includes('Edge Function')
-        ? 'गलत मोबाइल नंबर या पासवर्ड। कृपया पुनः जाँचें या रजिस्टर्ड ईमेल आईडी से लॉगिन करें।'
-        : msg;
-      setError(cleanMsg);
+      setError(sanitizeUserFacingError(msg));
       soundPlayer.playBubblePop();
     }
   };
@@ -338,14 +351,16 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
           </div>
 
           {/* Primary Green Login Button */}
-          <button
+          <LoadingButton
             type="submit"
-            disabled={isLoading}
-            className="w-full py-3.5 px-5 rounded-xl bg-[#0F3826] hover:bg-[#082015] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60"
+            isLoading={isLoading}
+            loadingText="Verifying Credentials..."
+            variant="navy"
+            className="w-full py-3.5 px-5 rounded-xl !bg-[#0F3826] hover:!bg-[#082015] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg cursor-pointer"
+            rightIcon={!isLoading ? <ArrowRight className="w-4 h-4" /> : undefined}
           >
-            <span>{isLoading ? 'Verifying Credentials...' : 'Login'}</span>
-            {!isLoading && <ArrowRight className="w-4 h-4" />}
-          </button>
+            Login
+          </LoadingButton>
         </form>
       ) : (
         /* STEP 2: GOOGLE AUTHENTICATOR TOTP FORM */
@@ -386,14 +401,17 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
             </p>
           </div>
 
-          <button
+          <LoadingButton
             type="submit"
-            disabled={isLoading || totpCode.length !== 6}
-            className="w-full py-3.5 px-5 rounded-xl bg-[#0F3826] hover:bg-[#082015] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-50"
+            isLoading={isLoading}
+            loadingText="Authenticating 2FA..."
+            disabled={totpCode.length !== 6}
+            variant="navy"
+            className="w-full py-3.5 px-5 rounded-xl !bg-[#0F3826] hover:!bg-[#082015] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg cursor-pointer"
+            leftIcon={<ShieldCheck className="w-4 h-4" />}
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>{isLoading ? 'Verifying 2FA...' : 'Authenticate & Enter Portal'}</span>
-          </button>
+            Authenticate & Enter Portal
+          </LoadingButton>
 
           <button
             type="button"

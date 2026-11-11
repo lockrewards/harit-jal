@@ -121,12 +121,22 @@ CREATE POLICY "Staff can read own record"
     );
 
 -- ====================================================================
--- 5. Link info@haritjal.in in auth.users and staff_users
+-- 5. Link info@haritjal.in in auth.users and staff_users (Dynamic SQL to avoid 42703)
 -- ====================================================================
 DO $$
 DECLARE
     v_user_id UUID;
 BEGIN
+    -- Ensure column exists dynamically first
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'staff_users' 
+          AND column_name = 'auth_user_id'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.staff_users ADD COLUMN auth_user_id UUID';
+    END IF;
+
     SELECT id INTO v_user_id FROM auth.users WHERE LOWER(email) = 'info@haritjal.in' LIMIT 1;
     
     IF v_user_id IS NOT NULL THEN
@@ -145,18 +155,18 @@ BEGIN
         SET is_root_super_admin = false
         WHERE LOWER(email) <> 'info@haritjal.in' AND is_root_super_admin = true;
 
-        -- C. Update or Insert info@haritjal.in in public.staff_users
+        -- C. Update or Insert info@haritjal.in in public.staff_users using dynamic SQL
         IF EXISTS (SELECT 1 FROM public.staff_users WHERE LOWER(email) = 'info@haritjal.in') THEN
-            UPDATE public.staff_users
-            SET auth_user_id = v_user_id,
-                role = 'admin',
+            EXECUTE 'UPDATE public.staff_users
+            SET auth_user_id = $1,
+                role = ''admin'',
                 is_root_super_admin = true,
                 is_blocked = false,
-                permissions = '["all", "leads", "orders", "inventory", "pricing", "staff", "audit_logs"]'::jsonb,
+                permissions = ''["all", "leads", "orders", "inventory", "pricing", "staff", "audit_logs"]''::jsonb,
                 updated_at = NOW()
-            WHERE LOWER(email) = 'info@haritjal.in';
+            WHERE LOWER(email) = ''info@haritjal.in''' USING v_user_id;
         ELSE
-            INSERT INTO public.staff_users (
+            EXECUTE 'INSERT INTO public.staff_users (
                 id,
                 auth_user_id,
                 name,
@@ -172,21 +182,21 @@ BEGIN
                 created_at,
                 updated_at
             ) VALUES (
-                v_user_id::text,
-                v_user_id,
-                'Harit Jal Admin',
-                'info@haritjal.in',
-                '+916299293497',
-                'Founder & Operations Director',
-                'admin',
-                '["all", "leads", "orders", "inventory", "pricing", "staff", "audit_logs"]'::jsonb,
+                $1::text,
+                $1,
+                ''Harit Jal Admin'',
+                ''info@haritjal.in'',
+                ''+916299293497'',
+                ''Founder & Operations Director'',
+                ''admin'',
+                ''["all", "leads", "orders", "inventory", "pricing", "staff", "audit_logs"]''::jsonb,
                 false,
                 true,
                 false,
                 false,
                 NOW(),
                 NOW()
-            );
+            )' USING v_user_id;
         END IF;
     END IF;
 END $$;

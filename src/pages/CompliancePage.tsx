@@ -206,7 +206,7 @@ export const CompliancePage: React.FC = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[540px] text-left text-xs">
                 <thead className="bg-[#F8F3E9] text-[#102C47] uppercase font-bold text-[10.5px]">
                   <tr>
                     <th className="py-3 px-3 rounded-l-lg">Parameter</th>

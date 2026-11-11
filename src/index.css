@@ -321,3 +321,84 @@
 .animate-liquid-bar {
   animation: topLiquidBar 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
+
+/* ==========================================================================
+   Harit Jal™ Universal Luxury Loader System
+   ========================================================================== */
+@keyframes haritSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes waterRippleExpand {
+  0% {
+    transform: scale(0.65) scaleY(0.4);
+    opacity: 0.9;
+  }
+  40% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.2) scaleY(0.65);
+    opacity: 0;
+  }
+}
+
+@keyframes emblemFloatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3.5px);
+  }
+}
+
+@keyframes textPulseFade {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-harit-spin {
+  animation: haritSpin 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.animate-water-ripple-1 {
+  animation: waterRippleExpand 2.2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+}
+
+.animate-water-ripple-2 {
+  animation: waterRippleExpand 2.2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+  animation-delay: 0.75s;
+}
+
+.animate-water-ripple-3 {
+  animation: waterRippleExpand 2.2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+  animation-delay: 1.5s;
+}
+
+.animate-emblem-float {
+  animation: emblemFloatGentle 2.6s ease-in-out infinite;
+}
+
+.animate-text-pulse {
+  animation: textPulseFade 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-harit-spin,
+  .animate-water-ripple-1,
+  .animate-water-ripple-2,
+  .animate-water-ripple-3,
+  .animate-emblem-float,
+  .animate-text-pulse {
+    animation: none !important;
+  }
+}

@@ -293,20 +293,20 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Bar: Slim Copyright & Back to Top */}
-        <div className="pt-4 border-t border-[#C99B42]/20 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-[#77766F]">
+        <div className="pt-4 border-t border-[#C99B42]/20 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-[#77766F] text-center sm:text-left">
           <div className="flex items-center gap-2 text-center sm:text-left">
             <span>© 2026 Harit Jal (हरित जल). All rights reserved.</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-[11px] font-mono text-[#77766F]">
-              <Calendar className="w-3 h-3 text-[#C99B42]" />
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+            <span className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] font-mono text-[#77766F]">
+              <Calendar className="w-3 h-3 text-[#C99B42] shrink-0" />
               <span>{currentDateTime}</span>
             </span>
-            <span className="text-[#C99B42]/40">•</span>
+            <span className="text-[#C99B42]/40 hidden min-[360px]:inline">•</span>
             <button
               onClick={scrollToTop}
-              className="text-[#102C47] hover:text-[#C99B42] transition flex items-center gap-1 cursor-pointer font-semibold text-xs"
+              className="text-[#102C47] hover:text-[#C99B42] transition flex items-center gap-1 cursor-pointer font-semibold text-xs shrink-0"
             >
               <span>Back to Top</span>
               <ArrowUp className="w-3.5 h-3.5" />

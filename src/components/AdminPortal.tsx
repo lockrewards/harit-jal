@@ -138,52 +138,61 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
     localGallery: GalleryService.getAllItems(),
   });
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const syncPortalData = async (isCancelled?: () => boolean) => {
     await Promise.resolve();
     if (isCancelled?.()) return;
 
-    const snap = readLocalSnapshot();
-    setBookings(snap.localBookings);
-    setVisitors(snap.localVisitors);
-    setUsers(snap.localUsers);
-    setStaffAuditLogs(snap.localAuditLogs);
-    setEmailLogs(snap.localEmailLogs);
-    setSheetsConfig(snap.localSheetsConfig);
-    setKnowledgeItems(snap.localKnowledge);
-    setNeerAnalytics(snap.localAnalytics);
-    setNeerConfig(snap.localNeerConfig);
-    setLeads(snap.localLeads);
-    setAutomationConfig(snap.localAutomationConfig);
-    setGalleryItems(snap.localGallery);
+    setIsSyncing(true);
+    try {
+      const snap = readLocalSnapshot();
+      setBookings(snap.localBookings);
+      setVisitors(snap.localVisitors);
+      setUsers(snap.localUsers);
+      setStaffAuditLogs(snap.localAuditLogs);
+      setEmailLogs(snap.localEmailLogs);
+      setSheetsConfig(snap.localSheetsConfig);
+      setKnowledgeItems(snap.localKnowledge);
+      setNeerAnalytics(snap.localAnalytics);
+      setNeerConfig(snap.localNeerConfig);
+      setLeads(snap.localLeads);
+      setAutomationConfig(snap.localAutomationConfig);
+      setGalleryItems(snap.localGallery);
 
-    if (isSupabaseConfigured() && AdminAuthService.isAuthenticated()) {
-      const [cloudBookings, cloudUsers, cloudAuditLogs, cloudEmailLogs, srvIntegrations] = await Promise.all([
-        canViewBookings ? SupabaseService.fetchConsultationsForStaff() : Promise.resolve(null),
-        canManageStaff || canViewBookings ? AdminAuthService.syncStaffRosterFromCloud() : Promise.resolve(null),
-        canManageStaff || canViewEmailLogs ? SupabaseService.fetchStaffAuditLogs() : Promise.resolve(null),
-        canViewEmailLogs ? SupabaseService.fetchEmailLogs() : Promise.resolve(null),
-        AutomationService.fetchServerIntegrationStatus(),
-      ]);
+      if (isSupabaseConfigured() && AdminAuthService.isAuthenticated()) {
+        const [cloudBookings, cloudUsers, cloudAuditLogs, cloudEmailLogs, srvIntegrations] = await Promise.all([
+          canViewBookings ? SupabaseService.fetchConsultationsForStaff() : Promise.resolve(null),
+          canManageStaff || canViewBookings ? AdminAuthService.syncStaffRosterFromCloud() : Promise.resolve(null),
+          canManageStaff || canViewEmailLogs ? SupabaseService.fetchStaffAuditLogs() : Promise.resolve(null),
+          canViewEmailLogs ? SupabaseService.fetchEmailLogs() : Promise.resolve(null),
+          AutomationService.fetchServerIntegrationStatus(),
+        ]);
 
-      if (isCancelled?.()) return;
+        if (isCancelled?.()) return;
 
-      if (srvIntegrations) {
-        setIntegrationStatus(srvIntegrations);
-      }
+        if (srvIntegrations) {
+          setIntegrationStatus(srvIntegrations);
+        }
 
-      if (cloudBookings) {
-        StorageService.setBookings(cloudBookings);
-        setBookings(cloudBookings);
+        if (cloudBookings) {
+          StorageService.setBookings(cloudBookings);
+          setBookings(cloudBookings);
+        }
+        if (cloudUsers) {
+          setUsers(cloudUsers);
+        }
+        if (cloudAuditLogs) {
+          StorageService.setStaffAuditLogs(cloudAuditLogs);
+          setStaffAuditLogs(cloudAuditLogs);
+        }
+        if (cloudEmailLogs) {
+          setEmailLogs(cloudEmailLogs);
+        }
       }
-      if (cloudUsers) {
-        setUsers(cloudUsers);
-      }
-      if (cloudAuditLogs) {
-        StorageService.setStaffAuditLogs(cloudAuditLogs);
-        setStaffAuditLogs(cloudAuditLogs);
-      }
-      if (cloudEmailLogs) {
-        setEmailLogs(cloudEmailLogs);
+    } finally {
+      if (!isCancelled?.()) {
+        setIsSyncing(false);
       }
     }
   };
@@ -720,10 +729,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                 refreshData();
                 showToast('Synced with latest database records.');
               }}
-              title="Refresh All Records"
-              className="p-2 rounded-full text-[#77766F] hover:text-[#102B46] hover:bg-[#F8F3E9] transition cursor-pointer"
+              disabled={isSyncing}
+              title={isSyncing ? "Syncing..." : "Refresh All Records"}
+              className="p-2 rounded-full text-[#77766F] hover:text-[#102B46] hover:bg-[#F8F3E9] transition cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-[#C99B42]' : ''}`} />
             </button>
 
             {/* Prominent Admin Logout Button */}
@@ -924,7 +934,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
               {/* Bookings Table */}
               <div className="rounded-2xl border border-[#C99B43]/25 overflow-hidden bg-white shadow-sm">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full min-w-[650px] text-left text-xs">
                     <thead>
                       <tr className="border-b border-[#C99B43]/20 bg-[#F8F3E9] text-[#102B46] uppercase font-bold text-[10.5px]">
                         <th className="py-2.5 px-3">Restaurant & Owner</th>
@@ -1075,7 +1085,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
               <div className="rounded-2xl border border-[#C99B43]/25 overflow-hidden bg-white shadow-sm">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full min-w-[600px] text-left text-xs">
                     <thead>
                       <tr className="border-b border-[#C99B43]/20 bg-[#F8F3E9] text-[#102B46] uppercase font-bold text-[10.5px]">
                         <th className="py-2.5 px-3">Visitor / Store Owner</th>
@@ -1391,7 +1401,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
 
                 {/* Leads List / Table */}
                 <div className="overflow-x-auto max-h-[380px]">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full min-w-[720px] text-left text-xs border-collapse">
                     <thead className="bg-[#FFF9EF] text-[#77766F] uppercase text-[10px] font-bold tracking-wider border-b border-[#C99B43]/15 sticky top-0 z-10 backdrop-blur-sm">
                       <tr>
                         <th className="p-3">Lead ID & Date</th>

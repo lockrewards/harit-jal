@@ -14,6 +14,7 @@ import { formatRoleDisplay } from '../../services/roles';
 import { TotpService } from '../../services/totpService';
 import { getSupabaseClient, isSupabaseConfigured } from '../../services/supabase';
 import { soundPlayer } from '../../services/sound';
+import { LoadingButton } from '../ui/LoadingButton';
 
 interface MfaEnrollmentModalProps {
   user: AdminUser;
@@ -235,14 +236,14 @@ export const MfaEnrollmentModal: React.FC<MfaEnrollmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-lg bg-[#FFF9EF] border border-[#C99B42]/50 rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-lg bg-[#FFF9EF] border border-[#C99B42]/50 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47] flex flex-col max-h-[92dvh]">
         {/* Header */}
-        <div className="p-5 sm:p-6 bg-[#F8F3E9] border-b border-[#C99B42]/30 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#102C47] text-[#C99B42] flex items-center justify-center mx-auto mb-3 shadow-md">
-            <ShieldCheck className="w-6 h-6" />
+        <div className="p-4 sm:p-6 bg-[#F8F3E9] border-b border-[#C99B42]/30 text-center shrink-0">
+          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#102C47] text-[#C99B43] flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-md">
+            <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold font-playfair text-[#102C47]">
+          <h2 className="text-lg sm:text-2xl font-bold font-playfair text-[#102C47]">
             Enroll Google Authenticator (AAL2)
           </h2>
           <p className="text-xs text-[#77766F] mt-1 max-w-sm mx-auto">
@@ -251,7 +252,7 @@ export const MfaEnrollmentModal: React.FC<MfaEnrollmentModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -340,16 +341,17 @@ export const MfaEnrollmentModal: React.FC<MfaEnrollmentModalProps> = ({
           </div>
 
           <div className="pt-1 space-y-2">
-            <button
+            <LoadingButton
               type="submit"
-              disabled={isEnrolling || isSubmitting || !factorId || totpCode.length !== 6}
-              className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              isLoading={isSubmitting || isEnrolling}
+              loadingText={isEnrolling ? 'Generating MFA Factor...' : 'Verifying & Elevating to AAL2...'}
+              disabled={!factorId || totpCode.length !== 6}
+              variant="gold"
+              className="w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md"
+              leftIcon={<Lock className="w-4 h-4 text-[#102C47]" />}
             >
-              <Lock className="w-4 h-4 text-[#102C47]" />
-              <span>
-                {isSubmitting ? 'Verifying & Elevating to AAL2...' : 'Verify Authenticator & Enter Portal →'}
-              </span>
-            </button>
+              Verify Authenticator & Enter Portal →
+            </LoadingButton>
 
             <button
               type="button"

@@ -1,4 +1,5 @@
 import React from 'react';
+import { HaritJalLoader } from './ui/HaritJalLoader';
 
 interface PageSkeletonLoaderProps {
   path?: string | null;
@@ -177,6 +178,20 @@ export const TopLiquidProgressBar: React.FC<{ isVisible: boolean }> = ({ isVisib
       <div 
         className="h-full w-full bg-gradient-to-r from-[#C99B42] via-[#FFF9EF] to-[#C99B42] shadow-[0_0_12px_#C99B42] animate-liquid-bar"
       />
+    </div>
+  );
+};
+
+/**
+ * Universal Brand Loading Screen with the animated Harit Jal circular ring & water ripples
+ */
+export const PageLoadingScreen: React.FC<{ message?: string; subMessage?: string }> = ({
+  message = 'Loading Harit Jal...',
+  subMessage,
+}) => {
+  return (
+    <div className="pt-24 pb-16 min-h-[60vh] flex items-center justify-center font-manrope">
+      <HaritJalLoader size="lg" message={message} subMessage={subMessage} variant="inline" />
     </div>
   );
 };

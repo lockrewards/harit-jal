@@ -7,7 +7,7 @@
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co;" />
     <link rel="icon" type="image/png" href="/images/brand/harit-jal-logo-mark.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Harit Jal (हरित जल) | Bespoke Dining Hydration for Restaurants & Hotels</title>
     <meta name="title" content="Harit Jal" />
     <meta name="description" content="Pure, safe and responsibly packaged drinking water, with a focus on health, sustainability, and positive community impact." />
@@ -134,7 +134,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600;1,700&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#F8F3E9] text-[#102B46] antialiased selection:bg-[#C99B43] selection:text-[#FFF9EF]">
-    <div id="root"></div>
+    <div id="root">
+      <div style="position:fixed;inset:0;background-color:#FFF9EF;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Manrope',sans-serif;z-index:9999;">
+        <div style="position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center;">
+          <svg style="position:absolute;inset:0;width:100%;height:100%;animation:haritSpin 1.4s cubic-bezier(0.45,0.05,0.55,0.95) infinite;" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="initRingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#102C47" stop-opacity="0.15"></stop>
+                <stop offset="30%" stop-color="#102C47" stop-opacity="0.95"></stop>
+                <stop offset="70%" stop-color="#1B4D7E"></stop>
+                <stop offset="90%" stop-color="#C99B42"></stop>
+                <stop offset="100%" stop-color="#E0BA6E"></stop>
+              </linearGradient>
+            </defs>
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#102C47" stroke-opacity="0.08" stroke-width="4.5"></circle>
+            <circle cx="50" cy="50" r="42" fill="none" stroke="url(#initRingGrad)" stroke-width="4.5" stroke-dasharray="200 70" stroke-linecap="round"></circle>
+            <circle cx="79" cy="21" r="4" fill="#E0BA6E"></circle>
+          </svg>
+          <div style="width:52px;height:52px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(16,43,70,0.1);">
+            <img src="/images/brand/harit-jal-logo-mark.png" alt="Harit Jal™" style="width:38px;height:38px;object-fit:contain;" />
+          </div>
+        </div>
+        <div style="margin-top:14px;text-align:center;">
+          <div style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:18px;color:#102C47;letter-spacing:-0.02em;">Harit Jal<span style="font-size:11px;color:#C99B42;vertical-align:top;margin-left:2px;">™</span></div>
+          <div style="font-size:12px;color:#77766F;font-weight:500;margin-top:4px;letter-spacing:0.04em;">Loading...</div>
+        </div>
+        <style>
+          @keyframes haritSpin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        </style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

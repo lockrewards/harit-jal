@@ -4,6 +4,7 @@ import { CustomerAccount } from '../types';
 import { CustomerAuthService } from '../services/customerAuth';
 import { CustomerDeleteAccountModal } from './CustomerDeleteAccountModal';
 import { soundPlayer } from '../services/sound';
+import { LoadingButton } from './ui/LoadingButton';
 
 interface CustomerProfileSettingsModalProps {
   isOpen: boolean;
@@ -247,13 +248,16 @@ export const CustomerProfileSettingsModal: React.FC<CustomerProfileSettingsModal
           </div>
 
           <div className="pt-2">
-            <button
+            <LoadingButton
               type="submit"
+              isLoading={isSubmitting}
+              loadingText="Updating Profile..."
               disabled={isSubmitting}
-              className="btn-gold-luxury w-full py-3 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50"
+              variant="gold"
+              className="w-full py-3 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
             >
-              {isSubmitting ? 'Updating Profile...' : 'Save Profile Changes'}
-            </button>
+              Save Profile Changes
+            </LoadingButton>
           </div>
 
           {/* DANGER ZONE - DELETE ACCOUNT */}

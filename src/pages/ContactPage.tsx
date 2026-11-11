@@ -7,6 +7,7 @@ import { ResendService } from '../services/resendService';
 import { SupabaseService, isSupabaseConfigured } from '../services/supabase';
 import { soundPlayer } from '../services/sound';
 import { CallBooking } from '../types';
+import { LoadingButton } from '../components/ui/LoadingButton';
 
 export const ContactPage: React.FC = () => {
   const [restaurantName, setRestaurantName] = useState('');
@@ -424,14 +425,16 @@ export const ContactPage: React.FC = () => {
                   </label>
                 </div>
 
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3.5 rounded-full bg-[#0F3826] hover:bg-[#0B2A1C] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 transition"
+                  isLoading={isSubmitting}
+                  loadingText="Submitting Your Request..."
+                  variant="navy"
+                  className="w-full py-3.5 rounded-full text-white font-bold text-sm shadow-md cursor-pointer"
+                  leftIcon={<Send className="w-4 h-4 text-white" />}
                 >
-                  <Send className="w-4 h-4 text-white" />
-                  <span>{isSubmitting ? 'Submitting Enquiry...' : 'Submit Enquiry & Request Physical Samples'}</span>
-                </button>
+                  Submit Enquiry & Request Physical Samples
+                </LoadingButton>
               </form>
             )}
           </div>

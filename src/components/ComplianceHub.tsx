@@ -245,7 +245,7 @@ export const ComplianceHub: React.FC = () => {
 
             {/* Parameters Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[540px] text-left text-xs">
                 <thead className="bg-[#F8F3E9] text-[#102B46] uppercase font-bold text-[10px] tracking-wider">
                   <tr>
                     <th className="py-2.5 px-3 rounded-l-lg">Parameter</th>

@@ -50,8 +50,8 @@ export const Hero: React.FC<HeroProps> = ({
         <div className="max-w-2xl lg:max-w-3xl space-y-5 sm:space-y-6">
           {/* Main Headline - 2 Lines on Desktop (Playfair Display 64-74px) */}
           <div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[66px] xl:text-[72px] font-bold font-playfair tracking-tight leading-[1.14]">
-              <span className="text-[#102B46] block whitespace-nowrap">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-[66px] xl:text-[72px] font-bold font-playfair tracking-tight leading-[1.14]">
+              <span className="text-[#102B46] block md:whitespace-nowrap">
                 Water Bottles Branded In
               </span>
               <span className="font-playfair italic text-[#C99B43] relative inline-block mt-1 sm:mt-2">
@@ -82,7 +82,7 @@ export const Hero: React.FC<HeroProps> = ({
             </h1>
 
             {/* Hindi Tagline beneath the headline (24–28px) */}
-            <div className="mt-4 sm:mt-5 flex items-center gap-2.5 text-xl sm:text-2xl lg:text-[26px] font-semibold">
+            <div className="mt-4 sm:mt-5 flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-base sm:text-2xl lg:text-[26px] font-semibold">
               <span className="text-[#455C22] font-devanagari font-bold">हरित जल</span>
               <span className="text-[#C99B43]/70 font-light">|</span>
               <span className="text-[#102B46] italic font-playfair font-semibold">
@@ -135,7 +135,7 @@ export const Hero: React.FC<HeroProps> = ({
       */}
       <div className="w-full bg-[#102B46]/95 border-t border-[#C99B43]/30 backdrop-blur-md relative z-10 shadow-lg text-[#FFF9EF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 md:gap-0 divide-y md:divide-y-0 md:divide-x divide-[#C99B43]/20">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 md:gap-0 md:divide-x divide-[#C99B43]/20">
             
             {/* 1. FSSAI Compliant */}
             <div className="flex items-center gap-3 px-3 py-1 sm:px-4">

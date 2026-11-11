@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { CallBooking } from '../types';
+import { LoadingButton } from './ui/LoadingButton';
 import { StorageService } from '../services/storage';
 import { CustomerAuthService } from '../services/customerAuth';
 import { AutomationService } from '../services/automationService';
@@ -399,7 +400,7 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
       }}
     >
       <div
-        className="relative w-full max-w-2xl bg-[#FFFDF9] border border-[#C99B42]/45 rounded-3xl shadow-[0_25px_60px_rgba(16,44,71,0.28)] flex flex-col overflow-hidden text-[#102C47] my-auto cursor-default"
+        className="relative w-full max-w-2xl max-h-[90dvh] bg-[#FFFDF9] border border-[#C99B42]/45 rounded-3xl shadow-[0_25px_60px_rgba(16,44,71,0.28)] flex flex-col overflow-hidden text-[#102C47] my-auto cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top-Left Luxury Gold Flourish Accent */}
@@ -428,14 +429,14 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
         </div>
 
         {/* Modal Header */}
-        <div className="relative flex items-start justify-between pt-6 pb-4 px-6 sm:px-8 border-b border-[#C99B42]/20 bg-gradient-to-b from-[#FFFDF9] to-[#FFF9EF]">
-          <div className="flex items-center gap-3.5">
+        <div className="relative flex items-start justify-between pt-5 pb-3.5 px-4 sm:px-8 border-b border-[#C99B42]/20 bg-gradient-to-b from-[#FFFDF9] to-[#FFF9EF] shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3.5">
             {/* Header Navy Round Medallion */}
-            <div className="w-12 h-12 rounded-full bg-[#102C47] border border-[#C99B42]/60 flex items-center justify-center text-[#C99B42] shadow-sm shrink-0">
-              <Calendar className="w-6 h-6 stroke-[2.2]" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#102C47] border border-[#C99B42]/60 flex items-center justify-center text-[#C99B42] shadow-sm shrink-0">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold font-playfair text-[#102C47] leading-tight">
+              <h2 className="text-lg sm:text-2xl font-bold font-playfair text-[#102C47] leading-tight">
                 Book Free Consultation Call
               </h2>
               <p className="text-xs sm:text-sm text-[#77766F] font-medium mt-0.5">
@@ -459,27 +460,27 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
         </div>
 
         {/* Benefits Strip */}
-        <div className="px-6 sm:px-8 pt-4 pb-2">
-          <div className="rounded-full bg-[#FFF9EF] border border-[#C99B42]/35 px-4 py-2 flex items-center justify-between gap-2 shadow-xs text-xs font-bold text-[#102C47]">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#C99B42] shrink-0" />
+        <div className="px-4 sm:px-8 pt-3 pb-2 shrink-0">
+          <div className="rounded-2xl sm:rounded-full bg-[#FFF9EF] border border-[#C99B42]/35 px-3 sm:px-4 py-2 flex flex-wrap sm:flex-nowrap items-center justify-center sm:justify-between gap-2 shadow-xs text-xs font-bold text-[#102C47]">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C99B42] shrink-0" />
               <span className="text-[11px] sm:text-xs">Quick 10-Min Call</span>
             </div>
-            <span className="text-[#C99B42]/40 font-light select-none">|</span>
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-[#C99B42] shrink-0" />
+            <span className="hidden sm:inline text-[#C99B42]/40 font-light select-none">|</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C99B42] shrink-0" />
               <span className="text-[11px] sm:text-xs">Free Sample Bottles</span>
             </div>
-            <span className="text-[#C99B42]/40 font-light select-none">|</span>
-            <div className="flex items-center gap-2">
-              <Headphones className="w-4 h-4 text-[#C99B42] shrink-0" />
+            <span className="hidden sm:inline text-[#C99B42]/40 font-light select-none">|</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Headphones className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C99B42] shrink-0" />
               <span className="text-[11px] sm:text-xs">Expert Guidance</span>
             </div>
           </div>
         </div>
 
         {/* Modal Scrollable Content */}
-        <div className="overflow-y-auto px-6 sm:px-8 py-3 max-h-[calc(88vh-140px)]">
+        <div className="overflow-y-auto px-4 sm:px-8 py-3 flex-1">
           {submittedBooking ? (
             /* Success State */
             <div className="text-center py-6 space-y-4">
@@ -858,23 +859,22 @@ export const BookCallModal: React.FC<BookCallModalProps> = ({
               </div>
 
               {/* Primary Luxury Gold CTA */}
-              <button
+              <LoadingButton
                 type="submit"
+                isLoading={isSubmitting}
+                loadingText="Scheduling Your Call & Dispatch..."
                 disabled={isSubmitting || (accountPassword.trim().length > 0 && !isAccountOtpVerified)}
-                className="btn-gold-luxury w-full py-3.5 sm:py-4 px-6 rounded-full font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.98] transition-all disabled:opacity-50"
+                variant="gold"
+                className="w-full py-3.5 sm:py-4 px-6 rounded-full font-bold text-sm sm:text-base shadow-lg cursor-pointer"
+                leftIcon={<PhoneCall className="w-4.5 h-4.5 text-[#102C47]" />}
+                rightIcon={!isSubmitting ? <ArrowRight className="w-4 h-4 text-[#102C47]" /> : undefined}
               >
-                <PhoneCall className="w-4.5 h-4.5 text-[#102C47]" />
-                <span>
-                  {isSubmitting
-                    ? 'Processing Request...'
-                    : accountPassword.trim().length > 0
-                      ? isAccountOtpVerified
-                        ? 'Create Partner Account & Confirm Booking →'
-                        : 'Verify Email OTP to Create Account & Submit'
-                      : 'Confirm Call Booking & Dispatch Physical Samples →'}
-                </span>
-                <ArrowRight className="w-4 h-4 text-[#102C47]" />
-              </button>
+                {accountPassword.trim().length > 0
+                  ? isAccountOtpVerified
+                    ? 'Create Partner Account & Confirm Booking →'
+                    : 'Verify Email OTP to Create Account & Submit'
+                  : 'Confirm Call Booking & Dispatch Physical Samples →'}
+              </LoadingButton>
 
               {/* Instant Contact Notice with Direct Clickable Phone & WhatsApp Links */}
               <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FFF9EF] border border-[#C99B42]/35 space-y-2 mt-2">

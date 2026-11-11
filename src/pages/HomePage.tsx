@@ -48,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             {/* Main Headline */}
             <div>
               <h1 className="text-3xl sm:text-5xl md:text-[54px] lg:text-[60px] font-bold font-playfair tracking-tight leading-[1.12]">
-                <span className="text-[#102C47] block whitespace-nowrap">
+                <span className="text-[#102C47] block md:whitespace-nowrap">
                   Water Bottles Branded In
                 </span>
                 <span className="font-playfair italic text-[#C99B42] relative inline-block mt-0.5 sm:mt-1">
@@ -72,7 +72,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               </h1>
 
               {/* Hindi Tagline */}
-              <div className="mt-2.5 sm:mt-3 flex items-center gap-2 text-base sm:text-lg lg:text-xl font-semibold">
+              <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2 text-base sm:text-lg lg:text-xl font-semibold">
                 <span className="text-[#52652D] font-devanagari font-bold">हरित जल</span>
                 <span className="text-[#C99B42]/70 font-light">|</span>
                 <span className="text-[#102C47] italic font-playfair">
@@ -119,7 +119,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Compact Bottom Trust Strip along navy/gold wave */}
         <div className="w-full bg-[#102C47]/95 border-t border-[#C99B42]/30 backdrop-blur-md relative z-10 shadow-sm text-[#FFF9EF]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-0 divide-y md:divide-y-0 md:divide-x divide-[#C99B42]/20">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-0 md:divide-x divide-[#C99B42]/20">
               
               <div className="flex items-center gap-2.5 px-3 py-1">
                 <ShieldCheck className="w-4 h-4 text-[#C99B42] shrink-0" />

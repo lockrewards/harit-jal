@@ -7,6 +7,7 @@ import { StorageService } from '../../services/storage';
 import { soundPlayer } from '../../services/sound';
 import { AdminAuthService } from '../../services/adminAuth';
 import { isSupabaseConfigured } from '../../services/supabase';
+import { LoadingButton } from '../ui/LoadingButton';
 import {
   ASSIGNABLE_STAFF_ROLES,
   formatRoleDisplay,
@@ -375,8 +376,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-4xl bg-[#FFF9EF] border border-[#C99B42]/50 rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47] flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#102C47]/75 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-4xl bg-[#FFF9EF] border border-[#C99B42]/50 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden font-manrope text-[#102C47] flex flex-col max-h-[92dvh]">
         
         {/* Top Header */}
         <div className="p-5 sm:p-6 bg-[#F8F3E9] border-b border-[#C99B42]/30 flex items-center justify-between shrink-0">
@@ -643,14 +644,16 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={isSubmitting}
-                  className="btn-gold-luxury px-5 py-2 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                  isLoading={isSubmitting}
+                  loadingText="Creating on Server..."
+                  variant="gold"
+                  className="px-5 py-2 rounded-full font-bold text-xs shadow-sm"
+                  leftIcon={<KeyRound className="w-3.5 h-3.5 text-[#102C47]" />}
                 >
-                  <KeyRound className="w-3.5 h-3.5 text-[#102C47]" />
-                  <span>{isSubmitting ? 'Creating on Server...' : 'Generate Temporary Password & Save Staff'}</span>
-                </button>
+                  Generate Temporary Password & Save Staff
+                </LoadingButton>
               </div>
             </form>
           )}
@@ -751,7 +754,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
           {/* STAFF MEMBERS TABLE */}
           <div className="rounded-2xl border border-[#C99B42]/30 overflow-hidden bg-white shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[680px] text-left text-xs">
                 <thead className="bg-[#F8F3E9] border-b border-[#C99B42]/20 text-[#77766F] font-bold uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="p-3.5">Staff Member</th>

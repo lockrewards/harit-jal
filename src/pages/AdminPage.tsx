@@ -9,6 +9,7 @@ import { DynamicAdminRouter } from '../services/dynamicAdminRouter';
 import { AdminPortal } from '../components/AdminPortal';
 import { NotFoundPage } from './NotFoundPage';
 import { PageSkeletonLoader } from '../components/PageSkeletonLoader';
+import { HaritJalLoader } from '../components/ui/HaritJalLoader';
 import { soundPlayer } from '../services/sound';
 import { StaffFirstTimeSetupModal } from '../components/admin/StaffFirstTimeSetupModal';
 import { MfaEnrollmentModal } from '../components/admin/MfaEnrollmentModal';
@@ -254,7 +255,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
   }
 
   if (isVerifyingRoute) {
-    return <PageSkeletonLoader path={currentPath} />;
+    return (
+      <HaritJalLoader 
+        variant="fullscreen" 
+        size="xl" 
+        message="Verifying Operations Gateway..." 
+        subMessage="Validating dynamic cryptographic window and credentials..." 
+      />
+    );
   }
 
   // -------------------------------------------------------------
@@ -277,7 +285,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
   // at top, and drinking glass/marble countertop cleanly at bottom.
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden w-full bg-[#FAF7EE] text-[#35432D] font-manrope selection:bg-[#C99A3C]/20 selection:text-[#123F2D] relative flex flex-col justify-center">
+    <div className="min-h-screen w-full bg-[#FAF7EE] text-[#35432D] font-manrope selection:bg-[#C99A3C]/20 selection:text-[#123F2D] relative flex flex-col justify-center py-6 lg:py-8 overflow-y-auto">
       
       {/* MASTER BACKDROP: Positioned slightly downward (left 66%) so bottle cap breathes at top and glass/table is visible at bottom */}
       <div 
@@ -296,7 +304,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
       />
 
       {/* Main Responsive Layout Container */}
-      <div className="w-full h-full max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-0 flex flex-col lg:flex-row items-center justify-between relative z-10 my-auto">
+      <div className="w-full max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col lg:flex-row items-center justify-between relative z-10 my-auto gap-8">
         
         {/* ======================================================== */}
         {/* 1. DESKTOP SPACER: Clears the bottle & drinking glass    */}

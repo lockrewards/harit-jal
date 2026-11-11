@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Clock, RefreshCw, AlertTriangle, CheckCircle2, Mail, Lock, Clipboard } from 'lucide-react';
 import { OtpService } from '../services/otpService';
 import { soundPlayer } from '../services/sound';
+import { LoadingButton } from './ui/LoadingButton';
 
 interface InlineOtpSectionProps {
   email: string;
@@ -446,14 +447,17 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
               ))}
             </div>
 
-            <button
+            <LoadingButton
               type="button"
               onClick={() => triggerVerification()}
+              isLoading={isVerifying}
+              loadingText="Verifying..."
               disabled={isVerifying || digits.join('').length !== 6 || validitySeconds <= 0}
-              className="btn-gold-luxury px-3.5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              variant="gold"
+              className="px-3.5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
-              {isVerifying ? 'Verifying...' : 'Verify OTP'}
-            </button>
+              Verify OTP
+            </LoadingButton>
           </div>
 
           {/* Resend Cooldown, Paste Code & Attempts Bar */}

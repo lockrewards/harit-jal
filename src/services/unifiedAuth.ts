@@ -297,7 +297,7 @@ export const UnifiedAuthService = {
               .maybeSingle(),
           ]);
 
-          // Check errors from both parallel queries: if either fails, check if app_metadata confirms staff role
+          // Check errors from both parallel queries: if either fails, check if app_metadata confirms staff role or founder recovery
           if (authIdErr || idErr) {
             const rawAppRole = typeof appMeta.role === 'string' ? appMeta.role : null;
             if (isStaffRole(rawAppRole)) {
@@ -314,6 +314,21 @@ export const UnifiedAuthService = {
                 totp_enabled: appMeta.totp_enabled === true,
                 is_first_login: appMeta.is_first_login === true,
                 is_root_super_admin: appMeta.is_root_super_admin === true,
+              };
+            } else if ((authUser.email || '').toLowerCase() === 'info@haritjal.in') {
+              staffRow = {
+                id: authUid,
+                auth_user_id: authUid,
+                name: 'Harit Jal Admin',
+                email: 'info@haritjal.in',
+                phone: '+916299293497',
+                designation: 'Founder & Operations Director',
+                role: 'admin',
+                permissions: ['all', 'leads', 'orders', 'inventory', 'pricing', 'staff', 'audit_logs'],
+                is_blocked: false,
+                totp_enabled: false,
+                is_first_login: false,
+                is_root_super_admin: true,
               };
             } else {
               await supabase.auth.signOut();
@@ -349,7 +364,7 @@ export const UnifiedAuthService = {
             staffRow = rawRow;
           }
 
-          // Fallback to verified server-signed app_metadata if staffRow is still null
+          // Fallback to verified server-signed app_metadata or founder recovery if staffRow is still null
           if (!staffRow) {
             const rawAppRole = typeof appMeta.role === 'string' ? appMeta.role : null;
             if (isStaffRole(rawAppRole)) {
@@ -366,6 +381,21 @@ export const UnifiedAuthService = {
                 totp_enabled: appMeta.totp_enabled === true,
                 is_first_login: appMeta.is_first_login === true,
                 is_root_super_admin: appMeta.is_root_super_admin === true,
+              };
+            } else if ((authUser.email || '').toLowerCase() === 'info@haritjal.in') {
+              staffRow = {
+                id: authUid,
+                auth_user_id: authUid,
+                name: 'Harit Jal Admin',
+                email: 'info@haritjal.in',
+                phone: '+916299293497',
+                designation: 'Founder & Operations Director',
+                role: 'admin',
+                permissions: ['all', 'leads', 'orders', 'inventory', 'pricing', 'staff', 'audit_logs'],
+                is_blocked: false,
+                totp_enabled: false,
+                is_first_login: false,
+                is_root_super_admin: true,
               };
             }
           }

@@ -16,6 +16,8 @@ import { CustomerDeleteAccountModal } from './CustomerDeleteAccountModal';
 import { UnifiedLoginCard } from './auth/UnifiedLoginCard';
 import { PasswordCriteriaChecklist, validatePasswordCriteria } from './auth/PasswordCriteriaChecklist';
 import { soundPlayer } from '../services/sound';
+import { HaritJalLoader } from './ui/HaritJalLoader';
+import { LoadingButton } from './ui/LoadingButton';
 
 interface CustomerPortalModalProps {
   isOpen: boolean;
@@ -75,6 +77,8 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   // Rates
   const getRate = (size: typeof orderSize) => {
@@ -88,37 +92,42 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
   const totalCost = totalBottles * getRate(orderSize);
 
   const refreshCustomerData = async (email: string) => {
+    setIsLoadingData(true);
     const cleanEmail = email.trim().toLowerCase();
 
-    if (isSupabaseConfigured()) {
-      const [cloudOrders, cloudBookings] = await Promise.all([
-        SupabaseService.fetchOrdersForCustomer(cleanEmail),
-        SupabaseService.fetchConsultationsForCustomer(cleanEmail),
-      ]);
+    try {
+      if (isSupabaseConfigured()) {
+        const [cloudOrders, cloudBookings] = await Promise.all([
+          SupabaseService.fetchOrdersForCustomer(cleanEmail),
+          SupabaseService.fetchConsultationsForCustomer(cleanEmail),
+        ]);
 
-      if (cloudOrders) {
-        CustomerAuthService.setOrdersCache(cloudOrders);
-        setOrders(cloudOrders);
-      } else {
-        setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+        if (cloudOrders) {
+          CustomerAuthService.setOrdersCache(cloudOrders);
+          setOrders(cloudOrders);
+        } else {
+          setOrders(CustomerAuthService.getOrdersForCustomer(cleanEmail));
+        }
+
+        if (cloudBookings) {
+          setMyInquiries(cloudBookings);
+        } else {
+          setMyInquiries(
+            StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
+          );
+        }
+        return;
       }
 
-      if (cloudBookings) {
-        setMyInquiries(cloudBookings);
-      } else {
-        setMyInquiries(
-          StorageService.getBookings().filter((inq) => inq.email.toLowerCase() === cleanEmail)
-        );
-      }
-      return;
+      const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
+      setOrders(customerOrders);
+
+      const allInquiries = StorageService.getBookings();
+      const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
+      setMyInquiries(matched);
+    } finally {
+      setIsLoadingData(false);
     }
-
-    const customerOrders = CustomerAuthService.getOrdersForCustomer(cleanEmail);
-    setOrders(customerOrders);
-
-    const allInquiries = StorageService.getBookings();
-    const matched = allInquiries.filter((inq) => inq.email.toLowerCase() === cleanEmail);
-    setMyInquiries(matched);
   };
 
   useEffect(() => {
@@ -275,52 +284,58 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
     if (!currentUser) return;
 
     setOrderError(null);
+    setIsPlacingOrder(true);
     soundPlayer.playWaterDrop();
-    const newOrder = CustomerAuthService.placeOrder({
-      ownerEmail: currentUser.email,
-      restaurantName: currentUser.restaurantName,
-      bottleSize: orderSize,
-      caseCount: orderCases,
-      bottlesTotal: totalBottles,
-      ratePerBottle: getRate(orderSize),
-      totalAmount: totalCost,
-      deliveryAddress,
-    });
 
-    const orderSynced = await SupabaseService.syncOrder({
-      ...newOrder,
-      ownerName: currentUser.ownerName,
-      phone: currentUser.phone,
-    });
+    try {
+      const newOrder = CustomerAuthService.placeOrder({
+        ownerEmail: currentUser.email,
+        restaurantName: currentUser.restaurantName,
+        bottleSize: orderSize,
+        caseCount: orderCases,
+        bottlesTotal: totalBottles,
+        ratePerBottle: getRate(orderSize),
+        totalAmount: totalCost,
+        deliveryAddress,
+      });
 
-    if (isSupabaseConfigured() && !orderSynced) {
-      CustomerAuthService.setOrdersCache(
-        CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
-      );
-      soundPlayer.playBubblePop();
-      setOrderError(
-        'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
-      );
-      return;
+      const orderSynced = await SupabaseService.syncOrder({
+        ...newOrder,
+        ownerName: currentUser.ownerName,
+        phone: currentUser.phone,
+      });
+
+      if (isSupabaseConfigured() && !orderSynced) {
+        CustomerAuthService.setOrdersCache(
+          CustomerAuthService.getAllOrders().filter((o) => o.id !== newOrder.id)
+        );
+        soundPlayer.playBubblePop();
+        setOrderError(
+          'Unable to save your order to our cloud server right now. Please try again or contact +91 62992 93497.'
+        );
+        return;
+      }
+
+      confetti({
+        particleCount: 90,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#C99B43', '#455C22', '#102B46'],
+      });
+
+      soundPlayer.playSuccessChime();
+      setOrderSuccess(`Order ${newOrder.id} placed successfully! Automated fleet dispatch scheduled.`);
+      await refreshCustomerData(currentUser.email);
+      setActiveTab('track');
+      setTimeout(() => setOrderSuccess(null), 5000);
+    } finally {
+      setIsPlacingOrder(false);
     }
-
-    confetti({
-      particleCount: 90,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#C99B43', '#455C22', '#102B46'],
-    });
-
-    soundPlayer.playSuccessChime();
-    setOrderSuccess(`Order ${newOrder.id} placed successfully! Automated fleet dispatch scheduled.`);
-    await refreshCustomerData(currentUser.email);
-    setActiveTab('track');
-    setTimeout(() => setOrderSuccess(null), 5000);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-[#102B46]/65 backdrop-blur-md animate-fadeIn font-manrope">
-      <div className="relative w-full max-w-4xl rounded-3xl bg-[#FFF9EF] border border-[#C99B43]/45 p-5 sm:p-7 md:p-8 max-h-[92vh] overflow-y-auto text-[#102B46] shadow-[0_25px_65px_rgba(16,43,70,0.25)]">
+      <div className="relative w-full max-w-4xl rounded-3xl bg-[#FFF9EF] border border-[#C99B43]/45 p-4 sm:p-7 md:p-8 max-h-[92dvh] overflow-y-auto text-[#102B46] shadow-[0_25px_65px_rgba(16,43,70,0.25)]">
         
         {/* Close Button */}
         <button
@@ -465,7 +480,9 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
             {/* TAB 1: TRACK ACTIVE ORDERS */}
             {activeTab === 'track' && (
               <div className="space-y-4">
-                {orders.length === 0 ? (
+                {isLoadingData && orders.length === 0 ? (
+                  <HaritJalLoader size="md" message="Loading your dining orders..." variant="inline" />
+                ) : orders.length === 0 ? (
                   <div className="p-8 text-center rounded-2xl bg-[#F8F3E9] border border-[#C99B43]/25 space-y-3">
                     <Package className="w-12 h-12 text-[#C99B43] mx-auto" />
                     <h3 className="text-base font-bold text-[#102B46]">No Orders Placed Yet</h3>
@@ -506,7 +523,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                           <span className="text-[#455C22] font-bold">{ord.status}</span>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center text-[10px] sm:text-xs">
+                        <div className="grid grid-cols-2 min-[520px]:grid-cols-4 gap-1.5 sm:gap-2 text-center text-[10px] sm:text-xs">
                           <div className="p-2 rounded-xl bg-[#455C22]/15 border border-[#455C22] text-[#455C22] font-bold">
                             <CheckCircle2 className="w-3.5 h-3.5 mx-auto mb-1 text-[#455C22]" />
                             <span>1. Confirmed</span>
@@ -635,13 +652,16 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                   />
                 </div>
 
-                <button
+                <LoadingButton
                   type="submit"
-                  className="btn-gold-luxury w-full py-3.5 px-6 rounded-full font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  isLoading={isPlacingOrder}
+                  loadingText="Scheduling Doorstep Dispatch..."
+                  variant="gold"
+                  className="w-full py-3.5 px-6 rounded-full font-bold text-sm shadow-md"
+                  leftIcon={<Truck className="w-4 h-4 text-[#102C47]" />}
                 >
-                  <Truck className="w-4 h-4 text-[#102B46]" />
-                  <span>Confirm Order & Schedule Doorstep Dispatch</span>
-                </button>
+                  Confirm Order & Schedule Doorstep Dispatch
+                </LoadingButton>
               </form>
             )}
 
@@ -1096,7 +1116,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
             setCurrentUser(updated);
             void refreshCustomerData(updated.email);
           }}
-          onDeletionScheduled={(dueAt) => {
+          onDeletionScheduled={(_dueAt) => {
             setShowProfileSettings(false);
             setCurrentUser(null);
             setDeletionNotice(
@@ -1113,7 +1133,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
           isOpen={showDeleteAccountModal}
           customer={currentUser}
           onClose={() => setShowDeleteAccountModal(false)}
-          onDeletionScheduled={(dueAt) => {
+          onDeletionScheduled={(_dueAt) => {
             setShowDeleteAccountModal(false);
             setCurrentUser(null);
             setDeletionNotice(

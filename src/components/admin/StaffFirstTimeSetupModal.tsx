@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, Eye, EyeOff, QrCode, KeyRound, Copy, Check, AlertTriangle } from 'lucide-react';
+import { LoadingButton } from '../ui/LoadingButton';
 import { AdminUser } from '../../types';
 import { TotpService } from '../../services/totpService';
 import { AdminAuthService, AdminSession } from '../../services/adminAuth';
@@ -469,14 +470,17 @@ export const StaffFirstTimeSetupModal: React.FC<StaffFirstTimeSetupModalProps> =
 
           {/* Action Buttons */}
           <div className="pt-2 space-y-2">
-            <button
+            <LoadingButton
               type="submit"
+              isLoading={isLoading}
+              loadingText="Activating Credentials..."
               disabled={isLoading || isInitializing || !newPassword || newPassword !== confirmPassword || totpCode.length !== 6}
-              className="btn-gold-luxury w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              variant="gold"
+              className="w-full py-3.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+              leftIcon={<Lock className="w-4 h-4 text-[#102C47]" />}
             >
-              <Lock className="w-4 h-4 text-[#102C47]" />
-              <span>{isLoading ? 'Activating Credentials...' : 'Activate Account & Enter Portal →'}</span>
-            </button>
+              Activate Account & Enter Portal →
+            </LoadingButton>
 
             <button
               type="button"
