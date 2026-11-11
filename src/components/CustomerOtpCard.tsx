@@ -24,7 +24,15 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
   onCancel,
   onBackToLogin,
 }) => {
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [digits, setDigits] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.href.match(/[?&#]otp=(\d{6})/i);
+      if (match && match[1]) {
+        return match[1].slice(0, 6).split('');
+      }
+    }
+    return ['', '', '', '', '', ''];
+  });
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const newPasswordInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -129,12 +137,11 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // Handle digit typing
+  // Handle digit typing (supports single-digit typing and multi-digit paste/autofill)
   const handleDigitChange = (index: number, val: string) => {
     if (isBlocked || isOtpVerified) return;
     setError(null);
 
-    // Only allow single digit
     const cleaned = val.replace(/\D/g, '');
     if (!cleaned) {
       const next = [...digits];
@@ -143,8 +150,29 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
       return;
     }
 
+    // MULTI-DIGIT PASTE / AUTOFILL HANDLER
+    if (cleaned.length > 1) {
+      const next = [...digits];
+      if (cleaned.length >= 6) {
+        const six = cleaned.slice(0, 6);
+        setDigits(six.split(''));
+        soundPlayer.playWaterDrop();
+        inputRefs.current[5]?.focus();
+        return;
+      }
+      for (let i = 0; i < cleaned.length && (index + i) < 6; i++) {
+        next[index + i] = cleaned[i];
+      }
+      setDigits(next);
+      soundPlayer.playWaterDrop();
+      const nextFocus = Math.min(index + cleaned.length, 5);
+      inputRefs.current[nextFocus]?.focus();
+      return;
+    }
+
+    // Single digit typing
     const next = [...digits];
-    next[index] = cleaned[cleaned.length - 1];
+    next[index] = cleaned;
     setDigits(next);
     soundPlayer.playWaterDrop();
 
@@ -164,37 +192,50 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
   };
 
   // Handle Paste full 6-digit code
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index = 0) => {
     e.preventDefault();
     if (isBlocked || isOtpVerified) return;
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const raw = e.clipboardData?.getData('text') || '';
+    const pasted = raw.replace(/\D/g, '');
     if (!pasted) return;
 
-    const next = ['', '', '', '', '', ''];
-    for (let i = 0; i < pasted.length; i++) {
-      next[i] = pasted[i];
+    if (pasted.length >= 6) {
+      const six = pasted.slice(0, 6);
+      setDigits(six.split(''));
+      soundPlayer.playWaterDrop();
+      inputRefs.current[5]?.focus();
+    } else {
+      const next = [...digits];
+      for (let i = 0; i < pasted.length && (index + i) < 6; i++) {
+        next[index + i] = pasted[i];
+      }
+      setDigits(next);
+      soundPlayer.playWaterDrop();
+      const nextFocus = Math.min(index + pasted.length, 5);
+      inputRefs.current[nextFocus]?.focus();
     }
-    setDigits(next);
-    soundPlayer.playWaterDrop();
-
-    const focusIdx = Math.min(pasted.length, 5);
-    inputRefs.current[focusIdx]?.focus();
   };
 
   const handlePasteClipboard = async () => {
     if (isBlocked || isOtpVerified) return;
     try {
       const text = await navigator.clipboard.readText();
-      const clean = text.replace(/\D/g, '').slice(0, 6);
+      const clean = text.replace(/\D/g, '');
       if (clean.length > 0) {
-        const next = ['', '', '', '', '', ''];
-        for (let i = 0; i < clean.length; i++) {
-          next[i] = clean[i];
+        if (clean.length >= 6) {
+          const six = clean.slice(0, 6);
+          setDigits(six.split(''));
+          soundPlayer.playWaterDrop();
+          inputRefs.current[5]?.focus();
+        } else {
+          const next = [...digits];
+          for (let i = 0; i < clean.length && i < 6; i++) {
+            next[i] = clean[i];
+          }
+          setDigits(next);
+          soundPlayer.playWaterDrop();
+          inputRefs.current[Math.min(clean.length, 5)]?.focus();
         }
-        setDigits(next);
-        soundPlayer.playWaterDrop();
-        const focusIdx = Math.min(clean.length, 5);
-        inputRefs.current[focusIdx]?.focus();
       }
     } catch {
       inputRefs.current[0]?.focus();
@@ -608,11 +649,12 @@ export const CustomerOtpCard: React.FC<CustomerOtpCardProps> = ({
                       ref={(el) => { inputRefs.current[index] = el; }}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
+                      maxLength={6}
                       value={digit}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => handleDigitChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
-                      onPaste={handlePaste}
+                      onPaste={(e) => handlePaste(e, index)}
                       className={`w-8 min-[360px]:w-10 sm:w-12 h-11 min-[360px]:h-12 sm:h-14 text-center font-mono text-lg min-[360px]:text-xl sm:text-2xl font-bold rounded-lg sm:rounded-xl border transition-all focus:outline-none ${
                         digit 
                           ? 'bg-[#FFF9EF] border-[#C99B42] text-[#102C47] shadow-inner' 

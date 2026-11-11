@@ -26,7 +26,15 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     const active = OtpService.getActiveOtp(email, purpose);
     return active.exists;
   });
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [digits, setDigits] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.href.match(/[?&#]otp=(\d{6})/i);
+      if (match && match[1]) {
+        return match[1].slice(0, 6).split('');
+      }
+    }
+    return ['', '', '', '', '', ''];
+  });
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Status & Timers
@@ -169,24 +177,50 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     }
   };
 
-  // Digit change
+  // Digit change (supports single-digit typing and multi-digit paste/autofill)
   const handleDigitChange = (index: number, val: string) => {
     if (isBlocked || isVerified) return;
     setError(null);
 
     const cleaned = val.replace(/\D/g, '');
+    if (!cleaned) {
+      const next = [...digits];
+      next[index] = '';
+      setDigits(next);
+      return;
+    }
+
+    // MULTI-DIGIT PASTE / AUTOFILL HANDLER
+    if (cleaned.length > 1) {
+      const next = [...digits];
+      if (cleaned.length >= 6) {
+        const six = cleaned.slice(0, 6);
+        setDigits(six.split(''));
+        soundPlayer.playWaterDrop();
+        inputRefs.current[5]?.focus();
+        void triggerVerification(six);
+        return;
+      }
+      for (let i = 0; i < cleaned.length && (index + i) < 6; i++) {
+        next[index + i] = cleaned[i];
+      }
+      setDigits(next);
+      soundPlayer.playWaterDrop();
+      const nextFocus = Math.min(index + cleaned.length, 5);
+      inputRefs.current[nextFocus]?.focus();
+      return;
+    }
+
+    // Single digit typing
     const next = [...digits];
-    next[index] = cleaned ? cleaned[cleaned.length - 1] : '';
+    next[index] = cleaned;
     setDigits(next);
     soundPlayer.playWaterDrop();
 
-    if (index < 5 && cleaned) {
+    if (index < 5) {
       inputRefs.current[index + 1]?.focus();
-    }
-
-    // Auto verify if all 6 digits entered
-    if (index === 5 && cleaned) {
-      const full = [...next.slice(0, 5), cleaned[cleaned.length - 1]].join('');
+    } else if (index === 5) {
+      const full = [...next.slice(0, 5), cleaned].join('');
       if (full.length === 6) {
         void triggerVerification(full);
       }
@@ -199,41 +233,51 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index = 0) => {
     e.preventDefault();
     if (isBlocked || isVerified) return;
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const raw = e.clipboardData?.getData('text') || '';
+    const pasted = raw.replace(/\D/g, '');
     if (!pasted) return;
 
-    const next = ['', '', '', '', '', ''];
-    for (let i = 0; i < pasted.length; i++) {
-      next[i] = pasted[i];
-    }
-    setDigits(next);
-    soundPlayer.playWaterDrop();
-
-    if (pasted.length === 6) {
-      void triggerVerification(pasted);
+    if (pasted.length >= 6) {
+      const six = pasted.slice(0, 6);
+      setDigits(six.split(''));
+      soundPlayer.playWaterDrop();
+      inputRefs.current[5]?.focus();
+      void triggerVerification(six);
     } else {
-      inputRefs.current[pasted.length]?.focus();
+      const next = [...digits];
+      for (let i = 0; i < pasted.length && (index + i) < 6; i++) {
+        next[index + i] = pasted[i];
+      }
+      setDigits(next);
+      soundPlayer.playWaterDrop();
+      const nextFocus = Math.min(index + pasted.length, 5);
+      inputRefs.current[nextFocus]?.focus();
     }
   };
 
   const handlePasteClipboard = async () => {
+    if (isBlocked || isVerified) return;
     try {
       const text = await navigator.clipboard.readText();
-      const clean = text.replace(/\D/g, '').slice(0, 6);
+      const clean = text.replace(/\D/g, '');
       if (clean.length > 0) {
-        const nextDigits = ['', '', '', '', '', ''];
-        for (let i = 0; i < clean.length; i++) {
-          nextDigits[i] = clean[i];
-        }
-        setDigits(nextDigits);
-        soundPlayer.playWaterDrop();
-        if (clean.length === 6) {
-          void triggerVerification(clean);
+        if (clean.length >= 6) {
+          const six = clean.slice(0, 6);
+          setDigits(six.split(''));
+          soundPlayer.playWaterDrop();
+          inputRefs.current[5]?.focus();
+          void triggerVerification(six);
         } else {
-          inputRefs.current[clean.length]?.focus();
+          const next = [...digits];
+          for (let i = 0; i < clean.length && i < 6; i++) {
+            next[i] = clean[i];
+          }
+          setDigits(next);
+          soundPlayer.playWaterDrop();
+          inputRefs.current[Math.min(clean.length, 5)]?.focus();
         }
       }
     } catch {
@@ -433,11 +477,12 @@ export const InlineOtpSection: React.FC<InlineOtpSectionProps> = ({
                   ref={(el) => { inputRefs.current[idx] = el; }}
                   type="text"
                   inputMode="numeric"
-                  maxLength={1}
+                  maxLength={6}
                   value={digit}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
-                  onPaste={handlePaste}
+                  onPaste={(e) => handlePaste(e, idx)}
                   className={`w-9 h-11 sm:w-10 sm:h-12 text-center font-mono text-lg font-bold rounded-xl border transition-all focus:outline-none ${
                     digit
                       ? 'bg-white border-[#C99B42] text-[#102C47] shadow-inner'

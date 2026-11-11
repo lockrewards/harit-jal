@@ -82,19 +82,19 @@ export const UnifiedLoginCard: React.FC<UnifiedLoginCardProps> = ({
     admin: {
       heading: 'Admin Login',
       subtitle: 'Access the Harit Jal admin portal',
-      identifierPlaceholder: 'admin@haritjal.in or mobile number',
+      identifierPlaceholder: 'Email or mobile number',
       tabLabel: 'Admin',
     },
     staff: {
       heading: 'Staff Login',
       subtitle: 'Access your assigned workspace',
-      identifierPlaceholder: 'name@haritjal.in or mobile number',
+      identifierPlaceholder: 'Email or mobile number',
       tabLabel: 'Staff',
     },
     partner: {
       heading: 'Partner / Business Login',
       subtitle: 'Access your business account',
-      identifierPlaceholder: 'your@gmail.com or mobile number',
+      identifierPlaceholder: 'Email or mobile number',
       tabLabel: 'Partner / Business',
     },
   }[activeAccountType];

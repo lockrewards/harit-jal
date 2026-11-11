@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 export interface HaritJalLoaderProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -233,15 +234,35 @@ export const HaritJalLoader: React.FC<HaritJalLoaderProps> = ({
 
   // Wrapper based on requested variant
   if (variant === 'fullscreen') {
-    return (
+    const fullscreenContent = (
       <div 
         role="status" 
         aria-live="polite"
-        className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#FFF9EF]/94 backdrop-blur-md animate-fadeIn ${className}`}
+        className={`fixed inset-0 top-0 left-0 w-screen h-screen min-h-[100dvh] z-[99999] flex flex-col items-center justify-center p-6 bg-[#FFF9EF]/98 backdrop-blur-md font-manrope ${className}`}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        {loaderCore}
+        <div className="w-full max-w-md mx-auto my-auto flex flex-col items-center justify-center py-8">
+          {loaderCore}
+        </div>
       </div>
     );
+
+    if (typeof document !== 'undefined' && document.body) {
+      return createPortal(fullscreenContent, document.body);
+    }
+    return fullscreenContent;
   }
 
   if (variant === 'overlay') {

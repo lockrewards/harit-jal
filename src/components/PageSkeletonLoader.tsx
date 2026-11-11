@@ -190,7 +190,7 @@ export const PageLoadingScreen: React.FC<{ message?: string; subMessage?: string
   subMessage,
 }) => {
   return (
-    <div className="pt-24 pb-16 min-h-[60vh] flex items-center justify-center font-manrope">
+    <div className="w-full min-h-[70vh] flex flex-col items-center justify-center font-manrope my-auto py-12">
       <HaritJalLoader size="lg" message={message} subMessage={subMessage} variant="inline" />
     </div>
   );

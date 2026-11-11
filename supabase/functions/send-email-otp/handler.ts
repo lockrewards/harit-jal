@@ -940,7 +940,7 @@ export function buildOtpEmailContent(
 </head>
 <body id="body" style="margin:0; padding:0; width:100%; background-color:#FFFFFF; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#1B4332; -webkit-font-smoothing:antialiased;">
   <div style="display:none; font-size:1px; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden; mso-hide:all;">
-    Your Harit Jal verification code (${escapeHtml(flowContext)}). Valid for 5 minutes.
+    Code Requested: ${safeOtp}. Your Harit Jal verification code is ${safeOtp} (${escapeHtml(flowContext)}). Valid for 5 minutes.
   </div>
   <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="width:100%; background-color:#FFFFFF; margin:0; padding:0; border-collapse:collapse;">
     <tr>
@@ -984,6 +984,9 @@ export function buildOtpEmailContent(
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; background-color:#F2F7F2; border:1px solid #BDD6C0; border-radius:12px; border-collapse:separate; border-spacing:0;">
                 <tr>
                   <td align="center" class="hj-otp-box" style="padding:20px 14px; background-color:#F2F7F2; border-radius:11px;">
+                    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11.5px; font-weight:700; letter-spacing:0.5px; color:#2D5A3F; text-transform:uppercase; margin-bottom:12px; text-align:center;">
+                      Code Requested
+                    </div>
                     <!--[if mso]>
                     <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="312">
                     <tr>
@@ -1013,6 +1016,18 @@ export function buildOtpEmailContent(
                         </td>
                       </tr>
                     </table>
+
+                    <!-- ROUNDED PILL COPY CODE ACTION BUTTON (MATCHES APPROVED GMAIL UI) -->
+                    <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="margin:12px auto 0 auto; border-collapse:separate; border-spacing:0;">
+                      <tr>
+                        <td align="center" style="background-color:#FFFFFF; border:2px solid #0052CC; border-radius:50px; padding:0; box-shadow:0 1px 3px rgba(0,82,204,0.15);">
+                          <a href="https://haritjal.in/#otp=${safeOtp}" target="_blank" rel="noopener noreferrer" style="display:inline-block; padding:7px 20px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700; color:#0052CC; text-decoration:none; border-radius:50px;">
+                            Copy code &bull; Enter in 1-Click &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
                     <div class="hj-copy-desktop" style="margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:500; line-height:18px; color:#2D5A3F; text-align:center;">
                       Select and copy your code. (Double-click code &bull; Ctrl+C)
                     </div>
@@ -1105,7 +1120,9 @@ export function buildOtpEmailContent(
     "",
     "Use the verification code below to confirm your email address and secure your account.",
     "",
+    `Code Requested: ${normalizedOtp}`,
     `Your Verification Code: ${normalizedOtp}`,
+    `Copy code: ${normalizedOtp} (or verify in 1-click: https://haritjal.in/#otp=${normalizedOtp})`,
     "",
     "This code is valid for 5 minutes.",
     "",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShieldCheck, Home, LogOut, 
+  ShieldCheck, Home, 
   Layers, BarChart3, Settings
 } from 'lucide-react';
 import { useRouter } from '../router/useRouter';
@@ -16,7 +16,6 @@ import { MfaEnrollmentModal } from '../components/admin/MfaEnrollmentModal';
 import { UnifiedLoginCard } from '../components/auth/UnifiedLoginCard';
 import { isProductionEnvironment } from '../services/env';
 import { isSupabaseConfigured } from '../services/supabase';
-import { formatRoleDisplay } from '../services/roles';
 import { AdminUser } from '../types';
 
 interface AdminPageProps {
@@ -191,77 +190,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ routeToken }) => {
 
   if (session && AdminAuthService.isAuthenticated()) {
     return (
-      <div className="min-h-screen bg-[#102B46] text-[#FFF9EF] font-manrope flex flex-col">
-        {/* Top Administration Security Bar */}
-        <header className="bg-[#0B1E32] border-b border-[#C99B43]/30 px-4 sm:px-6 py-2.5 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg border border-[#C99B43]/50 bg-[#FFF9EF] flex items-center justify-center p-1 shadow-xs overflow-hidden shrink-0">
-              <img 
-                src="/images/brand/harit-jal-logo-mark.png" 
-                alt="Harit Jal Logo" 
-                className="w-full h-full object-contain" 
-              />
-            </div>
-            <div>
-              <span className="font-bold text-[#FFF9EF]">Harit Jal™ Administrative Console</span>
-              <span className="hidden sm:inline text-[#77766F] ml-2">• Internal Operations</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Authenticated Staff Badge */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-[#102B46] border border-[#C99B43]/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-white">{session.name}</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#C99B43]/20 text-[#C99B43]">
-                {formatRoleDisplay(session.role)}
-              </span>
-            </div>
-
-            {/* View Public Website */}
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                navigate('/');
-              }}
-              className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs transition cursor-pointer flex items-center gap-1.5"
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Public Site</span>
-            </button>
-
-            {/* Secure Sign Out */}
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 rounded-full bg-red-900/60 hover:bg-red-800 text-red-200 border border-red-500/30 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Embedded Admin Portal Component */}
-        <div className="flex-1 relative">
-          <AdminPortal
-            isOpen={true}
-            onClose={() => navigate('/')}
-            onLogout={handleLogout}
-            session={session}
-          />
-        </div>
-      </div>
+      <AdminPortal
+        isOpen={true}
+        onClose={() => navigate('/')}
+        onLogout={handleLogout}
+        session={session}
+      />
     );
   }
 
   if (isVerifyingRoute) {
     return (
-      <HaritJalLoader 
-        variant="fullscreen" 
-        size="xl" 
-        message="Verifying Operations Gateway..." 
-        subMessage="Validating dynamic cryptographic window and credentials..." 
-      />
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#FFF9EF]">
+        <HaritJalLoader 
+          variant="fullscreen" 
+          size="xl" 
+          message="Verifying Operations Gateway..." 
+          subMessage="Validating dynamic cryptographic window and credentials..." 
+        />
+      </div>
     );
   }
 

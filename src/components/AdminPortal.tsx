@@ -3,7 +3,7 @@ import {
   X, Users, UserPlus, PhoneCall, Mail, FileSpreadsheet, Download, RefreshCw, 
   Search, CheckCircle, Clock, Trash2, Activity, Eye, EyeOff, Building, Pencil,
   Bot, BookOpen, Sliders, Plus, ShieldCheck, CheckCircle2, Image as ImageIcon, Upload,
-  LogOut
+  LogOut, Home
 } from 'lucide-react';
 import { CallBooking, VisitorRecord, AdminUser, GoogleSheetsConfig, StaffAuditLog } from '../types';
 import { KnowledgeItem, NeerAnalytics, NeerAIConfig, LeadRecord, AutomationConfig } from '../types/neer';
@@ -660,19 +660,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
   const regularVisitors = visitors.filter((v) => v.isRegular);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-[#102B46]/70 backdrop-blur-md animate-fadeIn font-manrope">
-      <div className="relative w-full max-w-6xl rounded-3xl bg-[#FFF9EF] border border-[#C99B43]/45 p-4 sm:p-6 md:p-8 max-h-[94vh] flex flex-col text-[#102B46] shadow-[0_30px_70px_rgba(16,43,70,0.3)]">
+    <div className="min-h-screen w-full bg-[#FFF9EF] text-[#102B46] font-manrope flex flex-col animate-fadeIn">
+      <div className="relative w-full flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-[1920px] mx-auto">
         
         {/* Toast Alert */}
         {toastMessage && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#455C22] text-[#FFF9EF] font-extrabold text-xs shadow-xl animate-bounce flex items-center gap-2">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#455C22] text-[#FFF9EF] font-extrabold text-xs shadow-xl animate-bounce flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-[#C99B43]" />
             <span>{toastMessage}</span>
           </div>
         )}
 
         {/* Top Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#C99B43]/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#C99B43]/20 gap-3">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl border border-[#C99B42]/50 bg-[#FFF9EF] flex items-center justify-center p-1.5 shadow-sm overflow-hidden shrink-0">
               <img 
@@ -682,7 +682,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold font-playfair text-[#102B46]">
                   Harit Jal Admin & Operations CRM
                 </h2>
@@ -696,10 +696,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* Active Staff Member Indicator */}
             {effectiveSession && (
-              <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#102B46]/5 border border-[#102B46]/10 text-xs">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#102B46]/5 border border-[#102B46]/10 text-xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="font-semibold text-[#102B46]">{effectiveSession.name}</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#C99B43]/20 text-[#8C6418]">
@@ -715,7 +715,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                   soundPlayer.playWaterDrop();
                   setShowAdminProfileModal(true);
                 }}
-                className="px-3 py-1 rounded-full bg-[#C99B43]/20 hover:bg-[#C99B43]/30 text-[#8C6418] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#C99B43]/40"
+                className="px-3 py-1.5 rounded-full bg-[#C99B43]/20 hover:bg-[#C99B43]/30 text-[#8C6418] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#C99B43]/40"
                 title="Super Admin Profile & Security Status"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#8C6418]" />
@@ -736,6 +736,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-[#C99B42]' : ''}`} />
             </button>
 
+            {/* Return to Public Website */}
+            <button
+              onClick={() => {
+                soundPlayer.playWaterDrop();
+                onClose();
+              }}
+              title="Return to Public Website"
+              className="px-3 py-1.5 rounded-full bg-white hover:bg-[#F8F3E9] border border-[#C99B43]/30 text-[#102B46] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Home className="w-3.5 h-3.5 text-[#102B46]" />
+              <span className="hidden sm:inline">Public Site</span>
+            </button>
+
             {/* Prominent Admin Logout Button */}
             <button
               onClick={() => {
@@ -752,17 +765,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
             >
               <LogOut className="w-3.5 h-3.5 text-white" />
               <span>Logout</span>
-            </button>
-
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                onClose();
-              }}
-              title="Close Portal (Return to Website)"
-              className="p-2 rounded-full text-[#77766F] hover:text-[#102B46] hover:bg-[#F8F3E9] transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
