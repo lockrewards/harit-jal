@@ -3,7 +3,7 @@ import {
   X, Users, UserPlus, PhoneCall, Mail, FileSpreadsheet, Download, RefreshCw, 
   Search, CheckCircle, Clock, Trash2, Activity, Eye, EyeOff, Building, Pencil,
   Bot, BookOpen, Sliders, Plus, ShieldCheck, CheckCircle2, Image as ImageIcon, Upload,
-  LogOut, Home
+  LogOut, Home, Sparkles
 } from 'lucide-react';
 import { CallBooking, VisitorRecord, AdminUser, GoogleSheetsConfig, StaffAuditLog } from '../types';
 import { KnowledgeItem, NeerAnalytics, NeerAIConfig, LeadRecord, AutomationConfig } from '../types/neer';
@@ -410,6 +410,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
     const defaults = KnowledgeBaseService.resetToDefault();
     setKnowledgeItems(defaults);
     showToast('Reset Knowledge Base to verified defaults.');
+  };
+
+  const handleSyncCatalogToKnowledge = () => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
+    soundPlayer.playWaterDrop();
+    const updated = KnowledgeBaseService.getAllKnowledge();
+    setKnowledgeItems(updated);
+    showToast('Neer AI successfully trained with all latest Bottle Gallery catalog items!');
+  };
+
+  const handleTrainFromQuery = (queryText: string) => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
+    soundPlayer.playWaterDrop();
+    setNewKbTitle(`Visitor Inquiry: ${queryText.slice(0, 40)}`);
+    const words = queryText.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter((w) => w.length > 2);
+    setNewKbKeywords(words.slice(0, 6).join(', '));
+    setNewKbCategory('general');
+    setNewKbContent('');
+    setNewKbSource('Customer Inquiry Learning');
+    setShowAddKnowledgeModal(true);
+  };
+
+  const handleDismissQuery = (index: number) => {
+    if (!canManageNeerAi) {
+      denyUnauthorizedAction();
+      return;
+    }
+    soundPlayer.playWaterDrop();
+    NeerAIService.removeUnansweredQuery(index);
+    setNeerAnalytics(NeerAIService.getAnalytics());
+    showToast('Inquiry removed from training queue.');
   };
 
   const handleSaveAIConfig = (provider: 'local' | 'gemini') => {
@@ -1719,6 +1756,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                     </button>
 
                     <button
+                      onClick={handleSyncCatalogToKnowledge}
+                      className="px-3 py-1.5 rounded-full border border-[#52652D]/40 text-[#52652D] hover:bg-[#52652D]/10 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                      title="Auto-train Neer AI with all products, sizes and rates from the Bottle Gallery"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#52652D]" />
+                      <span>Auto-Train Catalog</span>
+                    </button>
+
+                    <button
                       onClick={handleResetKnowledge}
                       className="px-3 py-1.5 rounded-full border border-[#C99B43]/40 text-[#102B46] hover:bg-white text-xs font-semibold transition cursor-pointer"
                       title="Reset all knowledge to verified Harit Jal defaults"
@@ -1774,6 +1820,89 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose, onLog
                   )}
                 </div>
 
+              </div>
+
+              {/* Neer AI Self-Training & Visitor Queries Queue */}
+              <div className="rounded-2xl border border-[#C99B43]/25 overflow-hidden bg-white shadow-sm space-y-3">
+                <div className="p-4 bg-[#F8F3E9] border-b border-[#C99B43]/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#C99B43]" />
+                    <div>
+                      <h3 className="text-sm font-bold text-[#102B46] flex items-center gap-2">
+                        <span>Neer AI Self-Training & Customer Inquiries Queue</span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#C99B43]/20 text-[#102B46] text-[10px] font-bold">
+                          {neerAnalytics.unansweredQueries?.length || 0} Inquiries Logged
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-[#77766F]">
+                        Review questions asked by website visitors and train Neer in 1-click so the AI learns continuously.
+                      </p>
+                    </div>
+                  </div>
+
+                  {neerAnalytics.unansweredQueries && neerAnalytics.unansweredQueries.length > 0 && (
+                    <button
+                      onClick={() => {
+                        NeerAIService.clearUnansweredQueries();
+                        setNeerAnalytics(NeerAIService.getAnalytics());
+                        showToast('Training queue cleared.');
+                      }}
+                      className="px-3 py-1 rounded-full border border-red-300 text-red-600 hover:bg-red-50 text-[11px] font-semibold transition cursor-pointer"
+                    >
+                      Clear Queue
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-4 pt-1">
+                  {neerAnalytics.unansweredQueries && neerAnalytics.unansweredQueries.length > 0 ? (
+                    <div className="divide-y divide-[#C99B43]/15 max-h-[260px] overflow-y-auto">
+                      {neerAnalytics.unansweredQueries.map((item, idx) => (
+                        <div key={idx} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="space-y-1">
+                            <div className="font-bold text-[#102B46] flex items-center gap-2">
+                              <span>&ldquo;{item.query}&rdquo;</span>
+                              <span className="px-2 py-0.2 rounded-full bg-[#102B46]/10 text-[#102B46] text-[9.5px] uppercase font-semibold">
+                                {item.language}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-[#77766F]">
+                              Logged: {new Date(item.timestamp).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <button
+                              onClick={() => handleTrainFromQuery(item.query)}
+                              className="btn-gold-luxury px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                              title="Train Neer with an answer to this query"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Train Neer</span>
+                            </button>
+                            <button
+                              onClick={() => handleDismissQuery(idx)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                              title="Dismiss from queue"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-[#77766F] text-xs space-y-1">
+                      <div className="font-semibold text-[#52652D] flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#52652D]" />
+                        <span>Training Queue Clean & Active</span>
+                      </div>
+                      <p className="text-[11px] text-[#77766F]">
+                        Neer AI is continuously learning from the live Bottle Gallery catalog and verified knowledge items.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
             </div>

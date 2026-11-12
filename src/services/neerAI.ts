@@ -113,6 +113,42 @@ export class NeerAIService {
     }));
   }
 
+  public static recordUnansweredQuery(query: string, language: string): void {
+    const clean = query.trim();
+    if (!clean || clean.length < 3) return;
+    this.updateAnalytics((prev) => {
+      const existing = prev.unansweredQueries || [];
+      if (existing.some((q) => q.query.toLowerCase() === clean.toLowerCase())) {
+        return prev;
+      }
+      return {
+        ...prev,
+        unansweredQueries: [
+          { query: clean, timestamp: new Date().toISOString(), language },
+          ...existing.slice(0, 49),
+        ],
+      };
+    });
+  }
+
+  public static removeUnansweredQuery(index: number): void {
+    this.updateAnalytics((prev) => {
+      const existing = [...(prev.unansweredQueries || [])];
+      existing.splice(index, 1);
+      return {
+        ...prev,
+        unansweredQueries: existing,
+      };
+    });
+  }
+
+  public static clearUnansweredQueries(): void {
+    this.updateAnalytics((prev) => ({
+      ...prev,
+      unansweredQueries: [],
+    }));
+  }
+
   public static detectLanguage(text: string): NeerLanguage {
     if (/[\u0900-\u097F]/.test(text)) {
       return 'hindi';
@@ -320,6 +356,7 @@ export class NeerAIService {
 
       // --- OUT OF SCOPE / UNKNOWN TOPIC (APOLOGIZE & ASK FOR CONTACT DETAILS) ---
       case 'unknown_topic':
+        NeerAIService.recordUnansweredQuery(userMessage, lang);
         text = lang === 'hinglish'
           ? "Kshama karein, is vishay ki specific jankari mere paas filhal uplabdh nahi hai kyonki main packaged drinking water aur bespoke restaurant bottles me focused hoon.\n\nKripya apna **Naam** aur **Mobile Number** share karein, taaki hamari Harit Jal team aapse direct contact karke aapke sabhi sawalon ka sahi jawab aur poori sahayata de sake!"
           : lang === 'hindi'
@@ -697,6 +734,8 @@ export class NeerAIService {
           context.lastQuestionAsked = 'phone';
           text = lang === 'hinglish'
             ? `Namaste, **${nameProvided}** ji! 😊 Harit Jal me aapka swagat hai. Kripya apna **Mobile Number** share karein, taaki hum aapke restaurant ke liye custom bottle samples arrange kar sakein.`
+            : lang === 'hindi'
+            ? `नमस्ते, **${nameProvided}** जी! 😊 हरित जल में आपका स्वागत है। कृपया अपना **मोबाइल नंबर** साझा करें, ताकि हम आपके रेस्तरां के लिए कस्टम बॉटल सैंपल तैयार कर सकें।`
             : `Welcome, **${nameProvided}**! 😊 Could you please share your **Mobile Number** so our team can arrange bespoke bottle samples for your tables?`;
         }
 
@@ -817,6 +856,89 @@ export class NeerAIService {
           { label: 'Go to Order Tracking Portal', action: 'navigate', payload: '/track' },
           { label: 'Contact Dispatch Desk', action: 'navigate', payload: '/contact' }
         );
+        break;
+
+      // --- PRODUCT AVAILABILITY & SIZING INFORMATION ---
+      case 'product_info':
+        const targetBottleSize = entities.bottleSize || context.preferredSize;
+
+        if (targetBottleSize === '1000ml') {
+          text = lang === 'hinglish'
+            ? `Haanji! Harit Jal ke paas **1000ml (1 Litre)** ke 2 popular options available hain:\n\n` +
+              `1. **1000ml Heritage Dhaba & Family Bottle (Food-Grade Recyclable PET):**\n` +
+              `   • Sturdy ergonomic ribbed grip, Forest Olive / Royal Gold tamper-evident cap.\n` +
+              `   • Highway dhabas, family dining tables aur resorts ke liye sabse best format.\n` +
+              `   • Wholesale rate: ₹11.00/bottle (Recommended menu MRP: ₹25.00–₹30.00, Margin: ~56%–63%).\n\n` +
+              `2. **1000ml Vintage Heritage Arch (Heavy-Base Flint Glass):**\n` +
+              `   • Heavy crystal glass base, luxury landscape crest aur polished brass gold cap.\n` +
+              `   • Premium family feast tables aur luxury dining banquets ke liye exclusive format.\n` +
+              `   • Wholesale rate: ₹18.00/bottle (Recommended menu MRP: ₹50.00, Margin: ~64%).\n\n` +
+              `Dono formats me aapke restaurant ka **custom brand logo, Devanagari typography aur smart QR menu** print hota hai. Kya aap inka sample mangwana chahenge?`
+            : lang === 'hindi'
+            ? `हाँजी! हरित जल के पास **1000ml (1 लीटर)** के 2 प्रमुख विकल्प उपलब्ध हैं:\n\n` +
+              `1. **1000ml हेरिटेज ढाबा फैमिली बॉटल (फूड-ग्रेड रीसाइक्लेबल PET):**\n` +
+              `   • एर्गोनॉमिक रिब्ड ग्रिप, फॉरेस्ट ऑलिव / रॉयल गोल्ड कैप।\n` +
+              `   • हाईवे ढाबों और फैमिली डाइनिंग के लिए सबसे लोकप्रिय।\n` +
+              `   • थोक दर (Wholesale): ₹11.00/बॉटल (अनुशंसित मेनू MRP: ₹25.00–₹30.00)।\n\n` +
+              `2. **1000ml विंटेज हेरिटेज आर्च (हैवी-बेस फ्लिंट ग्लास):**\n` +
+              `   • क्रिस्टल ग्लास बेस और पॉलिश्ड ब्रास गोल्ड कैप।\n` +
+              `   • प्रीमियम फैमिली टेबल्स के लिए विशेष स्वरूप।\n` +
+              `   • थोक दर (Wholesale): ₹18.00/बॉटल (अनुशंसित मेनू MRP: ₹50.00)।\n\n` +
+              `दोनों बोतलों पर आपके प्रतिष्ठान का लोगो व नाम प्रिंट होता है। क्या आप टेबल सैंपल मंगवाना चाहते हैं?`
+            : `Yes, absolutely! Harit Jal offers two distinguished **1000ml (1 Litre)** bottle formats tailored for dining:\n\n` +
+              `1. **1000ml Heritage Dhaba Family Bottle (Food-Grade Recyclable PET):**\n` +
+              `   • Ergonomic ribbed grip with tamper-evident Forest Olive or Royal Gold cap.\n` +
+              `   • Built for high-turnover highway dhabas, multi-cuisine family dining, and casual resorts.\n` +
+              `   • Wholesale rate: ₹11.00/bottle (Recommended menu MRP: ₹25.00–₹30.00, Margin: ~56%–63%).\n\n` +
+              `2. **1000ml Vintage Heritage Arch (Heavy-Base Flint Glass):**\n` +
+              `   • Heavy-base flint glass cylinder with engraved crest and polished brass gold cap.\n` +
+              `   • Crafted for luxury family banquets and upscale dining tables.\n` +
+              `   • Wholesale rate: ₹18.00/bottle (Recommended menu MRP: ₹50.00, Margin: ~64%).\n\n` +
+              `Both formats include 100% custom label printing with your establishment name, logo, and smart QR code. Would you like to view them in our Bottle Gallery or schedule a sample kit?`;
+
+          actions.push(
+            { label: 'View 1L Dhaba Bottle in Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'Request 1L Sample Kit', action: 'book_call' },
+            { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+          );
+        } else if (targetBottleSize === '750ml_glass') {
+          text = lang === 'hinglish' || lang === 'hindi'
+            ? `Harit Jal ke paas **750ml** me hamara flagship **750ml Grand Reserve Decanter** (Heavy fluted crystal glass aur royal gold stopper cap) aur **750ml Grand Banquet Celebration Bottle** uplabdh hai. Yeh fine dining aur grand wedding ballrooms ke liye banaya gaya hai. Wholesale rate: ₹24.00, Recommended MRP: ₹70.00.`
+            : `Harit Jal features the **750ml Grand Reserve Decanter** (fluted crystal glass with royal gold stopper) and **750ml Grand Banquet Celebration Bottle**, designed for palace dining and luxury wedding feasts. Wholesale rate: ₹24.00, Recommended MRP: ₹70.00.`;
+          actions.push(
+            { label: 'View 750ml in Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'Request Decanter Samples', action: 'book_call' }
+          );
+        } else if (targetBottleSize === '250ml') {
+          text = lang === 'hinglish' || lang === 'hindi'
+            ? `Harit Jal ke paas **250ml** me hamara **250ml Artisanal Cafe Edition** aur **250ml Cafe Terra Frosted Mist** uplabdh hai. Yeh specialty cafes, patisseries aur quick dining ke liye perfect hai. Wholesale rate: ₹7.00–₹11.00, Recommended MRP: ₹20.00–₹30.00.`
+            : `Harit Jal offers the **250ml Artisanal Cafe Edition** and **250ml Cafe Terra Frosted Mist**, designed for modern coffee bars and patisseries. Wholesale rate: ₹7.00–₹11.00, Recommended MRP: ₹20.00–₹30.00.`;
+          actions.push(
+            { label: 'View 250ml in Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'Request Cafe Samples', action: 'book_call' }
+          );
+        } else {
+          // 500ml or general overview of all sizes
+          text = lang === 'hinglish'
+            ? `Harit Jal me dining establishments ke liye 4 standard bottle sizes uplabdh hain:\n\n` +
+              `• **1000ml (1 Litre):** Heritage Dhaba PET (₹11.00) aur Vintage Estate Glass (₹18.00)\n` +
+              `• **750ml Decanter:** Fluted Grand Reserve Crystal Glass (₹24.00)\n` +
+              `• **500ml Dine-In:** Classic Flint Glass (₹14.00) aur Executive Hotel Cylinder (₹14.00)\n` +
+              `• **250ml Cafe:** Artisanal rPET (₹7.00) aur Frosted Mist Glass (₹11.00)\n\n` +
+              `Sabhi bottles par aapke restaurant ka custom logo aur branding hoti hai. Aap kaunsa size dekhna chahenge?`
+            : `Harit Jal offers 4 dedicated hospitality bottle sizes:\n\n` +
+              `• **1000ml (1 Litre):** Heritage Dhaba PET (₹11.00) & Vintage Estate Glass (₹18.00)\n` +
+              `• **750ml Decanter:** Fluted Grand Reserve Crystal Glass (₹24.00)\n` +
+              `• **500ml Dine-In:** Classic Flint Glass (₹14.00) & Executive Hotel Cylinder (₹14.00)\n` +
+              `• **250ml Cafe:** Artisanal rPET (₹7.00) & Frosted Mist Glass (₹11.00)\n\n` +
+              `All formats feature 100% bespoke branding with your establishment emblem. Which format would you like to explore?`;
+
+          actions.push(
+            { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'View Bottle Collections', action: 'navigate', payload: '/collections' },
+            { label: 'Book Discovery Call', action: 'book_call' }
+          );
+        }
         break;
 
       // --- TEST 8 & TARGETED PRICING ENQUIRY ---
@@ -977,6 +1099,11 @@ export class NeerAIService {
 
       // --- GENERAL QUESTION / INTENT-DRIVEN RAG RETRIEVAL ---
       default:
+        // Sizing Intent Defense: If bottle size is detected, directly route to product_info!
+        if (entities.bottleSize) {
+          return this.routeIntent(userMessage, 'product_info', entities, history, context);
+        }
+
         // 1. Direct handler for Specific Technical & Quality Topics
         if (entities.specificTopic === 'shelf_life') {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -1018,7 +1145,9 @@ export class NeerAIService {
             { label: 'Book Discovery Call', action: 'book_call' }
           );
         } else {
-          // Out of Knowledge / Unknown Query: Apologize and prompt user to provide Name & Mobile Number
+          // Out of Knowledge / Unknown Query: Log for continuous learning & training!
+          NeerAIService.recordUnansweredQuery(userMessage, lang);
+
           text = lang === 'hinglish'
             ? `Kshama karein, is sawal ki specific jankari mere paas filhal uplabdh nahi hai kyonki main packaged drinking water aur bespoke restaurant bottles me focused hoon.\n\nKripya apna **Naam** aur **Mobile Number** share karein, taaki hamari Harit Jal specialist team aapse direct sampark karke aapke sawalon ka sahi jawab aur poori sahayata de sake!`
             : lang === 'hindi'

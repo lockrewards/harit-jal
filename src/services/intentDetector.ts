@@ -57,41 +57,83 @@ export class IntentDetector {
   }
 
   /**
-   * Extract customer name from text, especially when prompted
+   * Extract customer name from text, handling both explicit intro statements
+   * and clean standalone/prompted name submissions (e.g. "samrat kumar", "samrat", "Atal Pandey").
+   * Strictly prevents corrupting names (e.g., never removes 'mr' from inside 'samrat').
    */
   public static extractCustomerName(text: string, context?: ConversationContext): string | null {
     const raw = text.trim();
+    if (!raw) return null;
 
-    // 1. Explicit intro statements:
-    const explicitMatch = raw.match(/(?:my\s*name\s*is|i\s*am|naam\s*hai|mera\s*naam\s*(?:hai)?|name\s*[:-])\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
-    if (explicitMatch && !/(?:admin|user|customer|restaurant|hotel|dhaba|cafe|bottle|water|flint|glass|price|rate)/i.test(explicitMatch[1])) {
-      return explicitMatch[1].trim();
+    // Comprehensive non-name vocabulary: greetings, products, sizes, questions, actions, etc.
+    const nonNameWords = new Set([
+      'admin', 'user', 'customer', 'restaurant', 'hotel', 'dhaba', 'cafe', 'banquet', 'bistro', 'bar', 'lounge', 'kitchen', 'dining',
+      'bottle', 'bottles', 'water', 'flint', 'glass', 'kaanch', 'pet', 'rpet', 'cap', 'caps', 'dhakkan', 'decanter', 'carafe',
+      'price', 'pricing', 'rate', 'rates', 'cost', 'wholesale', 'mrp', 'discount', 'margin', 'profit', 'paisa', 'paise', 'kharcha',
+      'kitne', 'kitna', 'kitni', 'kya', 'kaise', 'kyu', 'kaun', 'kahan', 'kab', 'what', 'why', 'when', 'where', 'how', 'who', 'which',
+      'hi', 'hello', 'hey', 'namaste', 'namaskar', 'hola', 'good', 'morning', 'evening', 'afternoon',
+      'yes', 'no', 'ok', 'okay', 'haan', 'haanji', 'nahi', 'na', 'sure', 'done', 'thik', 'theek', 'accha', 'sahi',
+      'call', 'callback', 'booking', 'book', 'order', 'tracking', 'track', 'delivery', 'deliver', 'supply', 'sample', 'samples', 'trial',
+      'details', 'jankari', 'info', 'information', 'enquiry', 'query', 'question', 'sawal', 'help', 'madad', 'login', 'signin', 'portal',
+      'website', 'menu', 'qr', 'code', 'please', 'kripya', 'available', 'uplabdh', 'pash', 'pass', 'hai', 'hain', 'hoon', 'tha', 'thi',
+      '250ml', '500ml', '750ml', '1000ml', '1liter', '1litre', '1l', '1ltr', 'liter', 'litre', 'ltr', 'ml'
+    ]);
+
+    // 1. Explicit intro statements: e.g. "My name is Samrat Kumar", "Mera naam Samrat hai", "I am Samrat"
+    const explicitMatch = raw.match(/(?:^|\b)(?:my\s*name\s*is|i\s*am|i'm|call\s*me|mera\s*naam\s*(?:hai)?|naam\s*(?:hai)?|this\s*is|name\s*[:-])\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})(?:\s+(?:hai|hoon|here))?/i);
+    if (explicitMatch && explicitMatch[1]) {
+      const candidate = explicitMatch[1].trim();
+      const parts = candidate.split(/\s+/).filter(Boolean);
+      const isClean = parts.every(p => p.length >= 2 && !nonNameWords.has(p.toLowerCase()));
+      if (isClean && parts.length >= 1 && parts.length <= 3) {
+        return parts.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      }
     }
 
-    // 2. Contextual: When Neer explicitly asked for customer name or name_and_phone
-    if (context && (
-      context.lastQuestionAsked === 'customer_name' || 
-      context.lastQuestionAsked === 'name' || 
-      context.lastQuestionAsked === 'name_and_phone'
-    )) {
-      let filtered = raw;
-      const phone = this.extractPhone(raw);
-      if (phone) filtered = filtered.replace(phone, '');
-      const email = this.extractEmail(raw);
-      if (email) filtered = filtered.replace(email, '');
+    // 2. Standalone or Contextual Name Extraction:
+    // Strip phone and email if combined (e.g. "Samrat Kumar 9876543210")
+    let filtered = raw;
+    const phone = this.extractPhone(raw);
+    if (phone) filtered = filtered.replace(phone, ' ');
+    const email = this.extractEmail(raw);
+    if (email) filtered = filtered.replace(email, ' ');
 
-      filtered = filtered
-        .replace(/(?:my\s*name\s*is|mera\s*naam\s*hai|mera\s*naam|naam|hai|ji|shree|mr|mrs|shri|sir|bhai)/gi, '')
-        .replace(/[^\w\s]/g, '')
-        .trim();
+    // Strip common conversational wrapper phrases (using word boundaries \b so we NEVER touch internal letters)
+    filtered = filtered
+      .replace(/\b(?:my\s*name\s*is|mera\s*naam\s*(?:hai)?|naam\s*(?:hai)?|i\s*am|this\s*is|call\s*me|i'm)\b/gi, ' ')
+      .replace(/\b(?:hai|hoon|bol\s*raha\s*hoon|here)\b/gi, ' ')
+      // Strip honorifics ONLY if they appear as standalone words at the very beginning or end
+      .replace(/^\s*(?:mr\.?|mrs\.?|ms\.?|shri|shree|dr\.?)\s+/i, ' ')
+      .replace(/\s+(?:ji|bhai|sir)\s*$/i, ' ')
+      .replace(/[^\w\s]/g, ' ')
+      .trim();
 
-      const words = filtered.split(/\s+/).filter(Boolean);
-      if (words.length >= 1 && words.length <= 3) {
-        const candidate = words.join(' ');
-        if (/^[A-Za-z\s]+$/.test(candidate) && candidate.length >= 2 && candidate.length <= 30) {
-          if (!/(?:admin|hello|hi|namaste|yes|no|ok|price|cost|rate|bottle|water|glass|pet|dhaba|hotel|cafe|menu)/i.test(candidate)) {
-            return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-          }
+    const words = filtered.split(/\s+/).filter(Boolean);
+
+    // A valid name consists of 1 to 3 words
+    if (words.length >= 1 && words.length <= 3) {
+      const allWordsAlphabetic = words.every(w => /^[A-Za-z]+$/.test(w) && w.length >= 2 && w.length <= 25);
+      const noneInBlacklist = words.every(w => !nonNameWords.has(w.toLowerCase()));
+
+      if (allWordsAlphabetic && noneInBlacklist) {
+        // Condition: Either prompted (lastQuestionAsked was name/phone), or pure 1-2 word standalone name
+        const isPrompted = Boolean(context && (
+          context.lastQuestionAsked === 'customer_name' || 
+          context.lastQuestionAsked === 'name' || 
+          context.lastQuestionAsked === 'name_and_phone' ||
+          context.lastQuestionAsked === 'phone' ||
+          context.lastQuestionAsked === 'contact_info'
+        ));
+
+        // Or unprompted standalone person name (e.g. "samrat kumar", "samrat", "Atal Pandey")
+        const isStandalone = !context?.customerName && (
+          words.length >= 2 ||
+          isPrompted ||
+          (raw.length >= 3 && raw.length <= 20)
+        );
+
+        if (isPrompted || isStandalone) {
+          return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
         }
       }
     }
@@ -117,14 +159,20 @@ export class IntentDetector {
   /**
    * Main Intent & Entity Analyzer (Alias)
    */
-  public static detectIntent(text: string, context: ConversationContext): IntentResult {
+  public static detectIntent(
+    text: string, 
+    context: ConversationContext = { language: 'english', currentPage: '/collections', turnsCount: 0 }
+  ): IntentResult {
     return this.analyze(text, context);
   }
 
   /**
    * Main Intent & Entity Analyzer
    */
-  public static analyze(text: string, context: ConversationContext): IntentResult {
+  public static analyze(
+    text: string, 
+    context: ConversationContext = { language: 'english', currentPage: '/collections', turnsCount: 0 }
+  ): IntentResult {
     const raw = text.trim();
     const lower = raw.toLowerCase();
     const entities: ExtractedEntities = {};
@@ -141,11 +189,11 @@ export class IntentDetector {
       entities.phone = extractedPhone;
     }
 
-    // 3. Size Extraction
+    // 3. Size Extraction (handles 250ml, 500ml, 750ml, 1000ml, 1liter, 1litre, 1l, 1ltr)
     if (/\b(?:250ml|250\s*ml)\b/i.test(lower)) entities.bottleSize = '250ml';
     else if (/\b(?:500ml|500\s*ml)\b/i.test(lower)) entities.bottleSize = '500ml';
     else if (/\b(?:750ml|750\s*ml|decanter)\b/i.test(lower)) entities.bottleSize = '750ml_glass';
-    else if (/\b(?:1000ml|1000\s*ml|1\s*litre|1\s*liter|1l)\b/i.test(lower)) entities.bottleSize = '1000ml';
+    else if (/\b(?:1000ml|1000\s*ml|1\s*litre|1\s*liter|1liter|1litre|1\s*l\b|1\s*ltr|1ltr)\b/i.test(lower)) entities.bottleSize = '1000ml';
 
     // 4. Material Extraction
     if (/\b(?:glass|flint\s*glass|kaanch|sheesha)\b/i.test(lower)) entities.bottleMaterial = 'glass';
@@ -258,13 +306,18 @@ export class IntentDetector {
     if (entities.customerName && (
       context.lastQuestionAsked === 'customer_name' || 
       context.lastQuestionAsked === 'name' || 
-      context.lastQuestionAsked === 'name_and_phone'
+      context.lastQuestionAsked === 'name_and_phone' ||
+      context.lastQuestionAsked === 'phone' ||
+      context.lastQuestionAsked === 'contact_info' ||
+      !context.customerName
     )) {
-      return {
-        primaryIntent: 'name_provided',
-        confidence: 0.95,
-        entities,
-      };
+      if (!/(?:price|pricing|cost|rate|margin|profit|order|track|login|portal|available|bottle|water|help|kaise|kya|kitne)/i.test(lower)) {
+        return {
+          primaryIntent: 'name_provided',
+          confidence: 0.95,
+          entities,
+        };
+      }
     }
 
     // PRIORITY 7: Business / Restaurant Name Provided in active lead context
@@ -321,6 +374,18 @@ export class IntentDetector {
       /(?:please\s*contact|call\s*me|call\s*back|callback|contact\s*me|reach\s*out|baat\s*karni|phone\s*karo|schedule\s*a?\s*call|book\s*a?\s*call)/i.test(lower)
     ) {
       return { primaryIntent: 'consultation_request', confidence: 0.92, entities };
+    }
+
+    // PRIORITY 11.5: Product Availability & Sizing Enquiry (e.g. "ky aap ke pash 1liter ka bottle hai")
+    const isProductAvailabilityQuery = 
+      /(?:pash|pass|paas|available|uplabdh|mil\s*sakta|milegi|milega|hoti\s*hai|hai\s*kya|kya\s*hai|options|variants|types|sizes|dekhna\s*hai|show\s*me|do\s*you\s*have|which\s*bottles?|bottle\s*(?:hai|milegi|types?|options?)|kya\s*bottle|kaun\s*si\s*bottle)/i.test(lower);
+
+    if (entities.bottleSize && isProductAvailabilityQuery) {
+      return {
+        primaryIntent: 'product_info',
+        confidence: 0.95,
+        entities,
+      };
     }
 
     // PRIORITY 12: Pricing Enquiry

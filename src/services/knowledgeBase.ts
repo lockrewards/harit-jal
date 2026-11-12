@@ -1,4 +1,5 @@
 import { KnowledgeItem } from '../types/neer';
+import { DEFAULT_GALLERY_ITEMS, GalleryService } from './galleryService';
 
 const STORAGE_KEY = 'harit_jal_neer_knowledge_v1';
 
@@ -38,11 +39,21 @@ export const INITIAL_KNOWLEDGE_BASE: KnowledgeItem[] = [
     id: 'kb-prod-1000ml-dhaba',
     category: 'product',
     title: '1000ml Highway Dhaba & Family Dining Edition',
-    keywords: ['1000ml', '1 litre', 'dhaba', 'highway', 'family', 'large', 'kulhad', 'murthal', 'pet'],
-    content: 'The 1000ml Highway Dhaba Edition is built with an ergonomic ribbed grip designed specifically for high-turnover family dining tables, highway resorts, and dhabas (like Karan The Dhaba, Murthal). Sturdy food-grade recyclable rPET with Forest Olive or Royal Gold cap. Wholesale rate: ₹11.00, Recommended menu MRP: ₹25.00. Table margin: ~56%.',
+    keywords: ['1000ml', '1000 ml', '1000', '1 litre', '1litre', '1 liter', '1liter', '1l', '1ltr', '1 ltr', 'dhaba', 'highway', 'family', 'large', 'kulhad', 'murthal', 'pet', 'rpet', 'bottle', 'bottles', 'paani', 'water', 'pash', 'pass', 'paas', 'available', 'uplabdh', 'hai kya', 'milegi', 'milega'],
+    content: 'The 1000ml (1 Litre) Highway Dhaba Edition is built with an ergonomic ribbed grip designed specifically for high-turnover family dining tables, highway resorts, and dhabas (like Karan The Dhaba, Murthal). Sturdy food-grade recyclable rPET with Forest Olive or Royal Gold cap. Wholesale rate: ₹11.00, Recommended menu MRP: ₹25.00 to ₹30.00. Table margin: ~56% to ~63%. 100% custom branded with your restaurant logo, Devanagari typography, and smart QR menu.',
     source: 'Harit Jal Highway Hospitality Division',
     verified: true,
-    lastUpdated: '2026-11-07',
+    lastUpdated: '2026-11-12',
+  },
+  {
+    id: 'kb-prod-1000ml-estate',
+    category: 'product',
+    title: '1000ml Vintage Heritage Arch Glass Bottle',
+    keywords: ['1000ml', '1000 ml', '1000', '1 litre', '1litre', '1 liter', '1liter', '1l', '1ltr', '1 ltr', 'vintage', 'heritage', 'arch', 'estate', 'flint', 'glass', 'carafe', 'dhaba', 'resort', 'large', 'bottle', 'bottles', 'paani', 'water', 'pash', 'pass', 'paas', 'available', 'uplabdh', 'hai kya', 'milegi', 'milega'],
+    content: 'The 1000ml (1 Litre) Vintage Heritage Arch is a heavy-base estate glass bottle featuring an arch crest and landscape engraving for luxury family dining tables, multi-cuisine banquet feasts, and highway resorts. Sturdy flint glass with polished brass gold cap. Wholesale rate: ₹18.00, Recommended menu MRP: ₹50.00. Table margin: ~64%. 100% reusable and infinitely recyclable, custom printed with your establishment emblem.',
+    source: 'Harit Jal Estate Glass Portfolio',
+    verified: true,
+    lastUpdated: '2026-11-12',
   },
   {
     id: 'kb-prod-500ml-executive',
@@ -220,18 +231,88 @@ export const INITIAL_KNOWLEDGE_BASE: KnowledgeItem[] = [
 
 export class KnowledgeBaseService {
   private static getStoredKnowledge(): KnowledgeItem[] {
+    let items: KnowledgeItem[] = [];
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          items = parsed;
         }
       }
     } catch {
       // Fallback
     }
-    return INITIAL_KNOWLEDGE_BASE;
+
+    // Always ensure initial verified items are present and up-to-date
+    const itemMap = new Map<string, KnowledgeItem>();
+    for (const item of INITIAL_KNOWLEDGE_BASE) {
+      itemMap.set(item.id, item);
+    }
+    // Existing saved items (custom ones or updated ones)
+    for (const item of items) {
+      if (!itemMap.has(item.id) || item.id.startsWith('kb-custom-')) {
+        itemMap.set(item.id, item);
+      }
+    }
+
+    // Auto-train dynamically from live Bottle Gallery catalog
+    try {
+      const galleryItems = typeof GalleryService !== 'undefined' && GalleryService.getAllItems
+        ? GalleryService.getAllItems()
+        : DEFAULT_GALLERY_ITEMS;
+
+      for (const gi of galleryItems) {
+        if (!gi.isVisible) continue;
+        const gid = `kb-gallery-${gi.id}`;
+        if (!itemMap.has(gid)) {
+          const normSize = gi.size === '1000ml' 
+            ? '1000ml (1 Litre)' 
+            : gi.size === '750ml_glass' 
+            ? '750ml Decanter' 
+            : gi.size;
+
+          const kw = [
+            gi.size,
+            gi.size.replace('ml', ' ml'),
+            gi.size === '1000ml' ? '1liter' : '',
+            gi.size === '1000ml' ? '1 liter' : '',
+            gi.size === '1000ml' ? '1litre' : '',
+            gi.size === '1000ml' ? '1 litre' : '',
+            gi.size === '1000ml' ? '1l' : '',
+            gi.size === '1000ml' ? '1ltr' : '',
+            gi.title.toLowerCase(),
+            gi.category,
+            gi.material.toLowerCase(),
+            gi.capColor.toLowerCase(),
+            'bottle',
+            'bottles',
+            'water',
+            'paani',
+            'available',
+            'uplabdh',
+            'pash',
+            'pass',
+            ...gi.categories,
+          ].filter(Boolean);
+
+          itemMap.set(gid, {
+            id: gid,
+            category: 'product',
+            title: `${gi.title} - ${normSize}`,
+            keywords: Array.from(new Set(kw)),
+            content: `${gi.title} (${normSize}): ${gi.subtitle}. ${gi.description} Crafted from ${gi.material} with signature ${gi.capColor} cap. Wholesale rate: ₹${gi.wholesaleRate ? gi.wholesaleRate.toFixed(2) : '14.00'}, Recommended menu MRP: ₹${gi.recommendedMRP ? gi.recommendedMRP.toFixed(2) : '40.00'}. Custom printed with your establishment logo and QR menu.`,
+            source: 'Harit Jal Live Bottle Gallery Catalog',
+            verified: true,
+            lastUpdated: '2026-11-12',
+          });
+        }
+      }
+    } catch {
+      // In case GalleryService fails
+    }
+
+    return Array.from(itemMap.values());
   }
 
   public static getAllKnowledge(): KnowledgeItem[] {
@@ -290,6 +371,7 @@ export class KnowledgeBaseService {
   /**
    * Semantic & Keyword RAG Retrieval:
    * Matches customer queries against title, keywords, content, and category.
+   * Isolates bottle sizes so 1000ml (1L) queries never match 500ml or 250ml bottles!
    * Returns ranked matching knowledge snippets with confidence score and citation.
    */
   public static searchKnowledge(query: string, maxResults = 3): { item: KnowledgeItem; score: number }[] {
@@ -309,12 +391,45 @@ export class KnowledgeBaseService {
 
     if (queryTokens.length === 0) return [];
 
+    // Detect target bottle size in query
+    let targetSize: '1000ml' | '750ml' | '500ml' | '250ml' | null = null;
+    if (/(?:1000\s*ml|1000|1\s*liter|1\s*litre|1liter|1litre|1l|1ltr)\b/i.test(cleanQuery)) {
+      targetSize = '1000ml';
+    } else if (/(?:750\s*ml|750)\b/i.test(cleanQuery)) {
+      targetSize = '750ml';
+    } else if (/(?:500\s*ml|500|half\s*liter|half\s*litre|adha\s*liter)\b/i.test(cleanQuery)) {
+      targetSize = '500ml';
+    } else if (/(?:250\s*ml|250|quarter\s*liter|chhota)\b/i.test(cleanQuery)) {
+      targetSize = '250ml';
+    }
+
     const items = this.getStoredKnowledge();
 
     const scored = items.map((item) => {
       let score = 0;
       const titleLower = item.title.toLowerCase();
       const contentLower = item.content.toLowerCase();
+
+      // Sizing isolation: If query explicitly asks for a size, enforce strict matching
+      if (targetSize) {
+        const itemHasTargetSize = 
+          (targetSize === '1000ml' && (titleLower.includes('1000ml') || titleLower.includes('1 litre') || titleLower.includes('1 liter') || item.keywords.includes('1000ml') || item.keywords.includes('1liter') || item.keywords.includes('1 litre'))) ||
+          (targetSize === '750ml' && (titleLower.includes('750ml') || item.keywords.includes('750ml') || item.keywords.includes('750ml_glass'))) ||
+          (targetSize === '500ml' && (titleLower.includes('500ml') || item.keywords.includes('500ml'))) ||
+          (targetSize === '250ml' && (titleLower.includes('250ml') || item.keywords.includes('250ml')));
+
+        const itemHasConflictingSize = 
+          (targetSize !== '1000ml' && (titleLower.includes('1000ml') || item.keywords.includes('1000ml'))) ||
+          (targetSize !== '750ml' && (titleLower.includes('750ml') || item.keywords.includes('750ml'))) ||
+          (targetSize !== '500ml' && (titleLower.includes('500ml') || item.keywords.includes('500ml'))) ||
+          (targetSize !== '250ml' && (titleLower.includes('250ml') || item.keywords.includes('250ml')));
+
+        if (itemHasTargetSize) {
+          score += 50; // Heavy boost for the right size
+        } else if (itemHasConflictingSize) {
+          score -= 40; // Heavy penalty for the wrong size!
+        }
+      }
 
       // Exact phrase match
       if (titleLower.includes(cleanQuery)) score += 25;
