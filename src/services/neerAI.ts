@@ -1050,11 +1050,11 @@ export class NeerAIService {
         const lowerMsg = userMessage.toLowerCase();
         if (entities.specificTopic === 'bottle_return') {
           text = lang === 'hinglish' || lang === 'hindi'
-            ? `Haanji! Hamare CPCB Extended Producer Responsibility (EPR) circular recycling program ke tehat, empty used crates agle weekly replenishment truck ke sath collect ho jati hain aur buy-back credit aapke agle billing cycle me adjust ho jata hai.`
-            : `Yes! Under our certified CPCB Extended Producer Responsibility (EPR) circular program, empty used bottles and crates are collected during weekly replenishment visits, and buy-back credits are adjusted directly on your monthly invoice.`;
+            ? `Haanji! Hamari sabhi bottles 100% food-grade aur recyclable Flint Glass & BPA-free PET material se banti hain. Hum direct restaurant delivery aur regular weekly replenishment karte hain taaki aapke cellar me fresh dining stock hamesha bana rahe.`
+            : `Yes! All our bottles are fabricated using 100% food-grade recyclable Flint Glass and BPA-free PET materials. We provide scheduled direct-to-cellar deliveries and regular weekly replenishments to keep your dining stock fresh.`;
           actions.push(
             { label: 'Explore Supply Journey', action: 'navigate', payload: '/how-it-works' },
-            { label: 'Schedule Cellar Pickup', action: 'book_call' }
+            { label: 'Book Consultation Call', action: 'book_call' }
           );
         } else if (/bihar|patna|gaya|muzaffarpur|bettiah|banuchhapar/i.test(lowerMsg)) {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -1107,10 +1107,10 @@ export class NeerAIService {
         // 1. Direct handler for Specific Technical & Quality Topics
         if (entities.specificTopic === 'shelf_life') {
           text = lang === 'hinglish' || lang === 'hindi'
-            ? `Harit Jal packaged drinking water ki certified shelf life bottling date se 12 mahine (1 year) hoti hai. Har bottle ke tamper-evident cap par FSSAI aur BIS IS:14543 norms ke anusaar manufacturing date, batch number aur best before timeline clearly laser-printed hoti hai.`
-            : `Harit Jal packaged drinking water has a certified shelf life of 12 months from the bottling date when stored in clean, cool cellar conditions. Every tamper-evident cap displays laser-printed manufacturing dates, batch codes, and best before dates per BIS IS:14543 regulations.`;
+            ? `Harit Jal packaged drinking water ki certified shelf life bottling date se 12 mahine (1 year) hoti hai. Har bottle ke tamper-evident cap par FSSAI food packaging norms ke anusaar manufacturing date, batch number aur best before timeline clearly laser-printed hoti hai.`
+            : `Harit Jal packaged drinking water has a certified shelf life of 12 months from the bottling date when stored in clean, cool cellar conditions. Every tamper-evident cap displays laser-printed manufacturing dates, batch codes, and best before dates per FSSAI food packaging regulations.`;
           actions.push(
-            { label: 'View Quality Certifications', action: 'navigate', payload: '/compliance' },
+            { label: 'View Statutory Compliance', action: 'navigate', payload: '/compliance' },
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' }
           );
           break;
@@ -1118,10 +1118,10 @@ export class NeerAIService {
 
         if (entities.specificTopic === 'tds_quality') {
           text = lang === 'hinglish' || lang === 'hindi'
-            ? `Harit Jal ka TDS 80 se 120 ppm ke beech perfectly balanced rehta hai. Iska neutral pH aur essential calcium-magnesium remineralization palate ko clean rakhta hai, jisse fine dining curries, wines aur coffees ka original taste bilkul affect nahi hota. 8-stage multi-barrier purification me dual RO, UV aur ozonation shamil hai.`
-            : `Harit Jal water is formulated with a balanced 80–120 ppm TDS and neutral pH, enriched with essential calcium and magnesium for crisp palate neutrality. This ensures guest dining experiences, fine wines, and specialty coffees retain their unadulterated flavors. Purified through an 8-stage multi-barrier process (Dual RO, UV, ozonation).`;
+            ? `Harit Jal ka TDS 80 se 120 ppm ke beech perfectly balanced rehta hai. Iska neutral pH aur essential calcium-magnesium remineralization palate ko clean rakhta hai, jisse fine dining curries, wines aur coffees ka original taste bilkul affect nahi hota.`
+            : `Harit Jal water is formulated with a balanced 80–120 ppm TDS and neutral pH, enriched with essential calcium and magnesium for crisp palate neutrality. This ensures guest dining experiences, fine wines, and specialty coffees retain their unadulterated flavors.`;
           actions.push(
-            { label: 'Read BIS & FSSAI Standards', action: 'navigate', payload: '/compliance' },
+            { label: 'View Compliance & Licenses', action: 'navigate', payload: '/compliance' },
             { label: 'Request Tasting Sample Kit', action: 'book_call' }
           );
           break;

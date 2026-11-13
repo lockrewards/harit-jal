@@ -25,20 +25,20 @@ A bespoke B2B bottled water e-commerce and consultation platform tailored for re
    - Floating rounded pill/capsule navigation bar that scrolls with the page naturally.
    - Subtle Harit Jal authenticity watermark badge and responsive navigation.
 
-4. **100% Government Rules & Legal Compliance Hub**
-   - **BIS IS 14543**: ISI Mark certification parameters.
-   - **FSSAI Central License**: Lic No. 10024011000892 and Schedule 4 GMP/GHP cleanroom bottling standards.
-   - **Plastic Waste Management (PWM) Rules 2016 & CPCB EPR**: Extended Producer Responsibility recycling and doorstep empty bottle buyback program.
-   - **Legal Metrology (Packaged Commodities) Rules 2011**: Standardized font sizes, MRP, net volume, batch codes.
-   - **NABL Lab Purity Report**: Detailed parameters breakdown (pH 7.2, TDS 128 ppm, Zero E.coli/coliforms, balanced Calcium & Magnesium).
+4. **100% Statutory & Legal Compliance Hub**
+   - **FSSAI Food Safety & Labeling**: Adherence to Packaging and Labelling Regulations 2011 and Schedule 4 GMP/GHP cleanroom bottling standards.
+   - **GST Registration (GSTIN Compliant)**: Full B2B commercial tax invoicing with Input Tax Credit (ITC) eligibility for hospitality partners.
+   - **MSME / Udyam Registration (Govt. of India)**: Verified enterprise under Ministry of MSME supporting ethical local supply chains.
+   - **DPDP Act 2023 Data Privacy**: Full statutory compliance with India's Digital Personal Data Protection Act 2023, AES-256 encryption, and designated Grievance Desk.
 
 5. **Supply Chain & Journey Roadmap**
-   - 5-stage interactive supply journey:
-     1. Consultation & Water Profiling
-     2. 24-Hour 3D Design & Physical Pre-production Sample
-     3. 8-Stage BIS Certified Cleanroom Bottling
-     4. NABL Lab Testing & QR Traceability Seal
-     5. Scheduled Doorstep Delivery & EPR Bottle Recycling Buyback.
+   - 6-stage transparent supply journey:
+     1. Digital Proofing with Restaurant Logo
+     2. Physical Sample Verification at Dining Tables
+     3. High-Speed Robotic Bottling & Nitrogen Dosing
+     4. Certified Quality & Cleanroom Packaging
+     5. Scheduled Direct-to-Cellar Delivery
+     6. Scheduled Recurring Replenishment.
 
 6. **Store Owner Call Booking System**
    - Comprehensive booking form for restaurant owners.

@@ -62,13 +62,13 @@ const ROADMAP_STEPS = [
   {
     step: '05',
     title: 'Compliance & Production',
-    hindi: 'मानक बॉटलिंग एवं लैब परीक्षण',
+    hindi: 'मानक बॉटलिंग एवं स्वच्छता परीक्षण',
     icon: ShieldCheck,
     badge: 'Step 5',
-    description: 'Water is filtered across multi-stage RO, UV, and ozonation systems adhering to BIS IS:14543 and FSSAI standards. Packaged touchlessly with batch quality logs.',
+    description: 'Pure water sourced from licensed, certified manufacturing plants is filled into food-grade bottles adhering to FSSAI cleanroom standards with your customized labels.',
     highlights: [
-      'Rigorous multi-stage purification',
-      'BIS IS:14543 & FSSAI Schedule 4 adherence',
+      'Certified drinking water sourcing',
+      'FSSAI Schedule 4 cleanroom adherence',
       'Zero human touch automated capping',
     ],
   },

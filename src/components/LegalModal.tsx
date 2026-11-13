@@ -47,7 +47,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, default
             { id: 'terms', label: 'Terms & Conditions', icon: FileText },
             { id: 'privacy', label: 'Privacy Policy', icon: Shield },
             { id: 'shipping', label: 'Delivery & Logistics', icon: Truck },
-            { id: 'refund', label: 'Returns & Buyback', icon: RefreshCw },
+            { id: 'refund', label: 'Quality & Replacements', icon: RefreshCw },
             { id: 'contact', label: 'Contact & Support', icon: Phone },
           ].map((t) => {
             const Icon = t.icon;
@@ -93,7 +93,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, default
               <div className="p-4 rounded-2xl bg-[#F8F3E9] border border-[#C99B43]/30 space-y-2">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-[#455C22]">2. Regulatory Compliance</h4>
                 <p className="text-xs text-[#77766F]">
-                  All bottled water is produced in compliance with the Bureau of Indian Standards (BIS IS:14543) and Food Safety and Standards Authority of India (FSSAI) specifications. Every bottle label displays mandatory food safety information, statutory consumer helpline numbers, net quantity, and manufacturing details.
+                  All bottled water is produced in compliance with the Food Safety and Standards Authority of India (FSSAI) specifications, sourced from certified packaged drinking water manufacturers, and supplied under statutory GST and MSME regulations. Every bottle label displays mandatory food safety information, statutory consumer helpline numbers, net quantity, and manufacturing details.
                 </p>
               </div>
 
@@ -194,14 +194,14 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, default
           {/* Tab 4: Refund & Returns */}
           {activeTab === 'refund' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold font-playfair text-[#102B46]">Quality Assurance & Empty Bottle Recycling</h3>
+              <h3 className="text-lg font-bold font-playfair text-[#102B46]">Quality Assurance & Replacement Policy</h3>
               <p>
                 We stand behind the physical condition and statutory compliance of every case delivered to your tables.
               </p>
 
               <div className="space-y-2 text-xs text-[#77766F]">
                 <p><strong>Damaged or Defective Bottles:</strong> Any case showing transit damage, leakage, or defective seal upon delivery will be replaced immediately at zero extra cost.</p>
-                <p><strong>EPR Plastic Buyback:</strong> Under our Extended Producer Responsibility initiative, empty PET bottles returned by your restaurant are collected for accredited eco-recycling, earning recycling credit rebates on subsequent orders.</p>
+                <p><strong>Recyclable Packaging:</strong> All glass and food-grade PET bottles supplied by Harit Jal are 100% recyclable. We encourage restaurants and banquet venues to segregate empty bottles for clean recycling in accordance with local municipal guidelines.</p>
               </div>
             </div>
           )}

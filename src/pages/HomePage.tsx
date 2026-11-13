@@ -3,6 +3,7 @@ import { ArrowRight, PhoneCall, ShieldCheck, CheckCircle2, Truck, Award, Images 
 import { soundPlayer } from '../services/sound';
 import { useRouter } from '../router/useRouter';
 import { PRODUCT_COLLECTIONS } from '../data/products';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
 
 interface HomePageProps {
   onOpenBookingModal: () => void;
@@ -83,7 +84,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Description */}
             <p className="text-[14.5px] sm:text-[16px] text-[#2C3E50] max-w-xl leading-relaxed font-normal">
-              Stop serving generic, unbranded water bottles. When your establishment serves Harit Jal, every guest holds a bespoke bottle crafted exclusively for your dining tables — 100% compliant with FSSAI, BIS IS:14543, and eco-recycling norms.
+              Stop serving generic, unbranded water bottles. When your establishment serves Harit Jal, every guest holds a bespoke bottle crafted exclusively for your dining tables — 100% compliant with FSSAI hygiene, GST invoicing, MSME standards, and eco-recycling norms.
             </p>
 
             {/* CTA Buttons */}
@@ -132,8 +133,8 @@ export const HomePage: React.FC<HomePageProps> = ({
               <div className="flex items-center gap-2.5 px-3 py-1 pt-1.5 md:pt-1">
                 <CheckCircle2 className="w-4 h-4 text-[#C99B42] shrink-0" />
                 <div className="leading-tight">
-                  <div className="font-bold text-xs sm:text-[13px] text-[#FFF9EF]">BIS IS:14543</div>
-                  <div className="text-[10px] text-[#C99B42]">Quality standard</div>
+                  <div className="font-bold text-xs sm:text-[13px] text-[#FFF9EF]">MSME & GST</div>
+                  <div className="text-[10px] text-[#C99B42]">Registered Enterprise</div>
                 </div>
               </div>
 
@@ -141,7 +142,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <Award className="w-4 h-4 text-[#C99B42] shrink-0" />
                 <div className="leading-tight">
                   <div className="font-bold text-xs sm:text-[13px] text-[#FFF9EF]">100% Recyclable</div>
-                  <div className="text-[10px] text-[#C99B42]">CPCB EPR circularity</div>
+                  <div className="text-[10px] text-[#C99B42]">Food-grade glass & rPET</div>
                 </div>
               </div>
 
@@ -338,10 +339,12 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Photorealistic Luxury Water Droplet & Ripple Centerpiece */}
           <div className="relative flex flex-col items-center justify-center -mt-2 sm:-mt-4 mb-2 select-none pointer-events-none">
             <div className="relative w-full max-w-xl sm:max-w-2xl h-44 sm:h-52 md:h-60 overflow-hidden flex items-center justify-center">
-              <img
+              <OptimizedImage
                 src="/images/decorations/luxury-water-droplet-ripple.png"
                 alt="Pristine Water Droplet and Concentric Liquid Ripples"
+                containerClassName="w-full h-full flex items-center justify-center"
                 className="w-full h-full object-contain filter drop-shadow-[0_4px_24px_rgba(201,155,66,0.18)] mix-blend-multiply select-none"
+                sizes="(max-width: 640px) 100vw, 672px"
               />
             </div>
           </div>
@@ -410,13 +413,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div>
                   {/* Photo Container */}
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
-                    <img
+                    <OptimizedImage
                       src={bottle.image}
                       alt={bottle.title}
-                      loading="lazy"
+                      containerClassName="w-full h-full"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     />
-                    <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#102C47]/90 text-[#FFF9EF] text-[10px] font-bold backdrop-blur-xs">
+                    <div className="absolute top-2.5 left-2.5 z-20 px-2.5 py-0.5 rounded-full bg-[#102C47]/90 text-[#FFF9EF] text-[10px] font-bold backdrop-blur-xs">
                       {bottle.sizeLabel}
                     </div>
                   </div>

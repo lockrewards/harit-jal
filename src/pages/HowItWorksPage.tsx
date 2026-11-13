@@ -59,11 +59,11 @@ const JOURNEY_STEPS = [
   {
     step: '05',
     title: 'Production & Quality Check',
-    hindi: 'मानक बॉटलिंग एवं लैब परीक्षण',
+    hindi: 'मानक बॉटलिंग एवं स्वच्छता परीक्षण',
     icon: ShieldCheck,
-    description: 'Water is purified across multi-barrier RO, UV, and ozonation systems adhering to BIS IS:14543 and FSSAI standards. Bottled touchless in a Class 100,000 cleanroom.',
+    description: 'Pure water sourced directly from licensed, certified manufacturing plants is filled into food-grade bottles under strict FSSAI Schedule 4 cleanroom standards with your customized labels.',
     details: [
-      'Strict adherence to BIS IS:14543:2004 specifications',
+      'Procured from authorized certified water processing plants',
       'Balanced natural minerals (pH 7.0–7.4 & TDS 120–150 ppm)',
       'Automated robotic capping and batch verification logs',
     ],
@@ -71,13 +71,13 @@ const JOURNEY_STEPS = [
   {
     step: '06',
     title: 'Delivery & Replenishment',
-    hindi: 'सीधे रेस्टोरेंट डिलीवरी एवं रीसाइक्लिंग',
+    hindi: 'सीधे रेस्टोरेंट डिलीवरी एवं नियमित आपूर्ति',
     icon: Truck,
-    description: 'Consignments are transported directly to your restaurant storage cellar on a predictable weekly schedule, with collection of empty used bottles for recycling.',
+    description: 'Consignments are transported directly to your restaurant storage cellar on a predictable weekly schedule with zero intermediary delays.',
     details: [
       'Direct-to-cellar unloading without distributor delays',
       'Automated recurring delivery schedule to prevent shortages',
-      'Empty bottle buyback program under CPCB EPR rules',
+      '100% recyclable, food-grade glass & BPA-free rPET containers',
     ],
   },
 ];

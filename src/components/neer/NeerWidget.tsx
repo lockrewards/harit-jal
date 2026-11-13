@@ -17,7 +17,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/gallery': 'Product Gallery',
   '/how-it-works': 'Supply Journey',
   '/contact': 'Consultation & Contact',
-  '/compliance': 'BIS & FSSAI Standards',
+  '/compliance': 'Compliance & Licensing',
   '/track': 'Partner Order Portal',
 };
 
@@ -54,7 +54,7 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
       {
         id: 'msg-welcome-01',
         sender: 'assistant',
-        text: `Namaste! I am Neer 💧 Harit Jal's AI Water Guide.\n\nWe craft bespoke drinking water bottles branded exclusively in your restaurant or hotel's name. Ask me about custom designs, wholesale pricing, Bottle Gallery, delivery corridors, or BIS IS:14543 standards!`,
+        text: `Namaste! I am Neer 💧 Harit Jal's AI Water Guide.\n\nWe craft bespoke drinking water bottles branded exclusively in your restaurant or hotel's name. Ask me about custom designs, wholesale pricing, Bottle Gallery, delivery corridors, or FSSAI & GST compliance!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         language: 'english',
         suggestedActions: [
@@ -221,14 +221,14 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
       case '/how-it-works':
         return [
           'Sample verification me kitna time lagta hai?',
-          'Do you collect empty used bottles?',
+          'Bottle design proof kaise banta hai?',
           'Cellar delivery schedule kya hai?',
         ];
       case '/compliance':
         return [
-          'BIS IS:14543 standard kya hai?',
+          'GST & MSME registration details',
           'FSSAI food safety license details',
-          'Plastic waste EPR recycling process',
+          'Data privacy & DPDP 2023 compliance',
         ];
       case '/track':
         return [
@@ -241,7 +241,7 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
           '500ml bottle kitne ki padegi?',
           'Can I see bottle photos with my logo?',
           'Do you supply to Bihar/Punjab?',
-          'What is BIS IS:14543 certification?',
+          'Are you GST & MSME registered?',
         ];
     }
   };

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Award, FileText, CheckCircle2, Scale, Lock, UserCheck, Shield } from 'lucide-react';
+import { ShieldCheck, Award, CheckCircle2, Lock, UserCheck, Shield, Building2 } from 'lucide-react';
 import { soundPlayer } from '../services/sound';
 
 export const CompliancePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'standards' | 'quality_specs' | 'recycling' | 'dpdp'>('standards');
+  const [activeTab, setActiveTab] = useState<'standards' | 'dpdp'>('standards');
 
   return (
     <div className="pt-20 sm:pt-22 pb-12 md:pb-14 bg-[#F8F3E9] text-[#102C47] font-manrope min-h-screen">
@@ -13,16 +13,16 @@ export const CompliancePage: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto mb-6 sm:mb-8">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF9EF] border border-[#C99B42]/40 text-[#52652D] text-xs font-bold mb-2.5 shadow-xs">
             <ShieldCheck className="w-3.5 h-3.5 text-[#52652D]" />
-            <span>STATUTORY & REGULATORY STANDARDS</span>
+            <span>STATUTORY & REGULATORY COMPLIANCE</span>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-bold font-playfair text-[#102C47] tracking-tight leading-tight">
-            Government Safety Standards & <br className="hidden sm:inline" />
+            Statutory Licensing & <br className="hidden sm:inline" />
             <span className="font-playfair italic text-[#C99B42]">
-              Statutory Food Hygiene Compliance.
+              Hospitality Food Safety Compliance.
             </span>
           </h1>
           <p className="mt-2 text-[#77766F] text-xs sm:text-sm leading-relaxed max-w-2xl mx-auto">
-            Every bottle produced adheres strictly to the Bureau of Indian Standards (BIS IS:14543), FSSAI food safety packaging rules, Legal Metrology packaged commodity guidelines, and CPCB plastic recycling norms.
+            Every bottle supplied adheres strictly to FSSAI food safety regulations, GST commercial tax invoicing, MSME enterprise standards, and DPDP Act 2023 privacy governance.
           </p>
 
           {/* Tab Navigation */}
@@ -39,37 +39,7 @@ export const CompliancePage: React.FC = () => {
               }`}
             >
               <Award className="w-4 h-4" />
-              <span>Statutory Frameworks</span>
-            </button>
-
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('quality_specs');
-              }}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'quality_specs'
-                  ? 'btn-gold-luxury shadow-xs'
-                  : 'bg-[#FFF9EF] text-[#102C47] hover:bg-white border border-[#C99B42]/30'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>IS:14543 Water Quality Specs</span>
-            </button>
-
-            <button
-              onClick={() => {
-                soundPlayer.playWaterDrop();
-                setActiveTab('recycling');
-              }}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'recycling'
-                  ? 'btn-gold-luxury shadow-xs'
-                  : 'bg-[#FFF9EF] text-[#102C47] hover:bg-white border border-[#C99B43]/30'
-              }`}
-            >
-              <Scale className="w-4 h-4" />
-              <span>CPCB EPR & Eco Recycling</span>
+              <span>Statutory Licenses & Registrations</span>
             </button>
 
             <button
@@ -89,196 +59,137 @@ export const CompliancePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab 1: Statutory Frameworks */}
+        {/* Tab 1: Statutory Frameworks & Registrations */}
         {activeTab === 'standards' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-            
-            <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
-                  STATUTORY STANDARD
-                </span>
-                <span className="text-xs text-[#C99B42] font-mono font-bold">IS 14543:2004</span>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              
+              {/* Card 1: FSSAI Food Safety */}
+              <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
+                    FOOD SAFETY NORMS
+                  </span>
+                  <span className="text-xs text-[#C99B42] font-mono font-bold">FSSAI ACT 2006</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">FSSAI Hygiene & Labeling</h3>
+                <p className="text-xs text-[#77766F] leading-relaxed">
+                  Adherence to Food Safety and Standards (Packaging and Labelling) Regulations. Every bottle carries transparent manufacturer details, nutritional info, and consumer helpline.
+                </p>
+                <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Schedule 4 GMP & GHP cleanroom practices</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Clear statutory label declarations for dining venues</span>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">Bureau of Indian Standards (ISI)</h3>
-              <p className="text-xs text-[#77766F] leading-relaxed">
-                Mandatory national specification for packaged drinking water. Governs automated bottle sanitation, multi-barrier filtration, ozone treatment, and physical quality verification.
+
+              {/* Card 2: GST Registration */}
+              <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
+                    TAXATION COMPLIANCE
+                  </span>
+                  <span className="text-xs text-[#C99B42] font-mono font-bold">GSTIN COMPLIANT</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">GST Registration</h3>
+                <p className="text-xs text-[#77766F] leading-relaxed">
+                  Officially registered under Goods and Services Tax (GST), Government of India. Full commercial transparency with formal B2B GST tax invoices, HSN classification, and legal tax compliance.
+                </p>
+                <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Compliant B2B tax invoicing for hospitality partners</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Input Tax Credit (ITC) eligibility for businesses</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: MSME / Udyam Registration */}
+              <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
+                    GOVT OF INDIA
+                  </span>
+                  <span className="text-xs text-[#C99B42] font-mono font-bold">UDYAM REGISTERED</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">MSME Registration</h3>
+                <p className="text-xs text-[#77766F] leading-relaxed">
+                  Formally registered Micro, Small & Medium Enterprise under the Ministry of MSME, Government of India. Committed to responsible regional commerce, ethical trade, and verified operations.
+                </p>
+                <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Certified enterprise under Ministry of MSME</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Verified local supply chains & ethical partnerships</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: DPDP Act 2023 */}
+              <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
+                    DATA PRIVACY LAW
+                  </span>
+                  <span className="text-xs text-[#C99B42] font-mono font-bold">DPDP ACT 2023</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">Digital Personal Data Protection</h3>
+                <p className="text-xs text-[#77766F] leading-relaxed">
+                  Full statutory adherence to India&apos;s DPDP Act 2023. Restaurant partner records, account credentials, and artwork files are secured under strict Data Fiduciary duties with AES-256 encryption.
+                </p>
+                <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Notice & affirmative consent on every consultation form</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#102C47]">
+                    <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
+                    <span>Zero commercial third-party sharing & Grievance Officer</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Sourcing & Hospitality Co-Packing Transparency Banner */}
+            <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 shadow-xs space-y-2 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 text-[#102C47] font-bold font-playfair text-base sm:text-lg">
+                <Building2 className="w-5 h-5 text-[#C99B42]" />
+                <span>Transparent Hospitality Sourcing & Co-Packing Architecture</span>
+              </div>
+              <p className="text-[#77766F] leading-relaxed">
+                Harit Jal works with appropriately licensed drinking water manufacturers and verified packaging suppliers to deliver quality drinking water in customized bottles for restaurants, hotels and hospitality businesses. We focus on bespoke branding, premium packaging, food-grade containers and scheduled deliveries tailored to each business&apos;s requirements.
               </p>
-              <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Packaged strictly under BIS-approved processing setups</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/20">
+                  <span className="font-bold text-[#102C47] block mb-0.5">1. Sourced Water</span>
+                  <span className="text-[#77766F]">Drinking water sourced from appropriately licensed manufacturing partners.</span>
                 </div>
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Mandatory microbiological safety & mineral norms</span>
+                <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/20">
+                  <span className="font-bold text-[#102C47] block mb-0.5">2. Quality Packaging</span>
+                  <span className="text-[#77766F]">Food-grade glass and approved PET bottles with suitable packaging documentation.</span>
                 </div>
-              </div>
-            </div>
-
-            <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
-                  FOOD SAFETY NORMS
-                </span>
-                <span className="text-xs text-[#C99B42] font-mono font-bold">FSSAI ACT 2006</span>
-              </div>
-              <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">FSSAI Hygiene & Labeling</h3>
-              <p className="text-xs text-[#77766F] leading-relaxed">
-                Adherence to Food Safety and Standards (Packaging and Labelling) Regulations. Every bottle carries transparent manufacturer details, nutritional info, and consumer helpline.
-              </p>
-              <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Schedule 4 GMP & GHP cleanroom practices</span>
+                <div className="p-3 rounded-xl bg-[#F8F3E9] border border-[#C99B42]/20">
+                  <span className="font-bold text-[#102C47] block mb-0.5">3. Custom Branding & Logistics</span>
+                  <span className="text-[#77766F]">Customized restaurant and hotel labels with scheduled business deliveries.</span>
                 </div>
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Clear statutory label declarations for dining venues</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
-                  CONSUMER PROTECTION
-                </span>
-                <span className="text-xs text-[#C99B42] font-mono font-bold">PCR 2011</span>
-              </div>
-              <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">Legal Metrology Packaged Rules</h3>
-              <p className="text-xs text-[#77766F] leading-relaxed">
-                Full compliance with weights & measures rules. Every bottle displays clearly marked net quantity, manufacture month/year, customer care helpline, and restaurant-specific MRP.
-              </p>
-              <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Standardized font sizes & declaration geometry</span>
-                </div>
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Transparent dining menu MRP alignment</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-md bg-[#52652D]/10 text-[#52652D] text-[10.5px] font-mono font-bold border border-[#52652D]/30">
-                  DATA PRIVACY LAW
-                </span>
-                <span className="text-xs text-[#C99B42] font-mono font-bold">DPDP ACT 2023</span>
-              </div>
-              <h3 className="text-base sm:text-lg font-bold font-playfair text-[#102C47]">Digital Personal Data Protection</h3>
-              <p className="text-xs text-[#77766F] leading-relaxed">
-                Full statutory adherence to India&apos;s DPDP Act 2023. Restaurant partner records, account credentials, and artwork files are secured under strict Data Fiduciary duties with AES-256 encryption.
-              </p>
-              <div className="space-y-1.5 pt-2 border-t border-[#C99B42]/15 text-xs">
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Notice & affirmative consent on every consultation form</span>
-                </div>
-                <div className="flex items-center gap-2 text-[#102C47]">
-                  <CheckCircle2 className="w-4 h-4 text-[#52652D] shrink-0" />
-                  <span>Zero commercial third-party sharing & Grievance Officer</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* Tab 2: Quality Specs Table */}
-        {activeTab === 'quality_specs' && (
-          <div className="rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 p-5 sm:p-6 space-y-4 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#C99B42]/20">
-              <div>
-                <span className="text-xs font-mono font-bold text-[#52652D]">
-                  OFFICIAL BIS SPECIFICATION REFERENCE
-                </span>
-                <h3 className="text-xl font-bold font-playfair text-[#102C47]">
-                  IS:14543 Packaged Drinking Water Quality Limits
-                </h3>
-              </div>
-              <span className="px-3 py-1 rounded-full bg-[#52652D]/10 text-[#52652D] text-xs font-bold border border-[#52652D]/30 self-start sm:self-auto">
-                Adheres to BIS Standard
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[540px] text-left text-xs">
-                <thead className="bg-[#F8F3E9] text-[#102C47] uppercase font-bold text-[10.5px]">
-                  <tr>
-                    <th className="py-3 px-3 rounded-l-lg">Parameter</th>
-                    <th className="py-3 px-3">BIS IS:14543 Limit</th>
-                    <th className="py-3 px-3">Harit Jal Specification</th>
-                    <th className="py-3 px-3 rounded-r-lg">Standard Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#C99B42]/15 text-[#102C47]/90">
-                  <tr>
-                    <td className="py-2.5 px-3 font-semibold">Total Dissolved Solids (TDS)</td>
-                    <td className="py-2.5 px-3">Max 500 mg/L</td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#52652D]">120 – 150 mg/L (Sweet Taste)</td>
-                    <td className="py-2.5 px-3 text-[#52652D] font-bold">✓ Compliant</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-semibold">pH Value (at 25°C)</td>
-                    <td className="py-2.5 px-3">6.5 to 8.5</td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#52652D]">7.1 – 7.4 (Naturally Balanced)</td>
-                    <td className="py-2.5 px-3 text-[#52652D] font-bold">✓ Compliant</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-semibold">Turbidity</td>
-                    <td className="py-2.5 px-3">Max 2 NTU</td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#52652D]">&lt; 0.2 NTU (Crystal Clear)</td>
-                    <td className="py-2.5 px-3 text-[#52652D] font-bold">✓ Compliant</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-semibold">Escherichia coli (E. coli)</td>
-                    <td className="py-2.5 px-3">Absent in 250 ml</td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#52652D]">Zero / Absent</td>
-                    <td className="py-2.5 px-3 text-[#52652D] font-bold">✓ Compliant</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-semibold">Coliform Bacteria</td>
-                    <td className="py-2.5 px-3">Absent in 250 ml</td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#52652D]">Zero / Absent</td>
-                    <td className="py-2.5 px-3 text-[#52652D] font-bold">✓ Compliant</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Recycling Policy */}
-        {activeTab === 'recycling' && (
-          <div className="rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 p-5 sm:p-6 space-y-3.5 shadow-xs">
-            <h3 className="text-xl font-bold font-playfair text-[#102C47]">
-              Extended Producer Responsibility (EPR) & Circularity
-            </h3>
-            <p className="text-xs text-[#77766F] leading-relaxed max-w-2xl">
-              Under our Extended Producer Responsibility commitment, all empty bottles are collected back from our partner restaurants and transferred to accredited recyclers.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div className="p-4 rounded-2xl bg-[#F8F3E9] border border-[#C99B42]/20 space-y-1.5">
-                <span className="font-bold text-xs uppercase text-[#52652D] block">1. Doorstep Collection</span>
-                <p className="text-xs text-[#77766F]">Empty crates and bottles retrieved on delivery rounds.</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-[#F8F3E9] border border-[#C99B42]/20 space-y-1.5">
-                <span className="font-bold text-xs uppercase text-[#52652D] block">2. Accredited Reprocessing</span>
-                <p className="text-xs text-[#77766F]">PET converted into recycled fibers and clean secondary resin.</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-[#F8F3E9] border border-[#C99B42]/20 space-y-1.5">
-                <span className="font-bold text-xs uppercase text-[#52652D] block">3. Green Dining Badge</span>
-                <p className="text-xs text-[#77766F]">Participating venues receive verified sustainability certificates.</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 4: DPDP Act 2023 Compliance & Data Governance */}
+        {/* Tab 2: DPDP Act 2023 Compliance & Data Governance */}
         {activeTab === 'dpdp' && (
           <div className="rounded-2xl sm:rounded-3xl bg-[#FFF9EF] border border-[#C99B42]/30 p-5 sm:p-7 space-y-6 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#C99B42]/20">
@@ -394,4 +305,3 @@ export const CompliancePage: React.FC = () => {
     </div>
   );
 };
-

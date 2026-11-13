@@ -584,7 +584,7 @@ export const CustomerPortalModal: React.FC<CustomerPortalModalProps> = ({
                     <Package className="w-4 h-4 text-[#455C22]" />
                     <span>Order Custom Bottles for "{currentUser.restaurantName}"</span>
                   </h3>
-                  <span className="text-xs text-[#455C22] font-bold">BIS IS:14543 Standard</span>
+                  <span className="text-xs text-[#455C22] font-bold">FSSAI & Statutory Standard</span>
                 </div>
 
                 {orderError && (

@@ -93,7 +93,7 @@ export const Hero: React.FC<HeroProps> = ({
 
           {/* Brand Description (Manrope 17–19px) */}
           <p className="text-[16px] sm:text-[17.5px] lg:text-[18.5px] text-[#2C3E50] max-w-xl leading-relaxed font-manrope font-normal">
-            Stop serving generic, unbranded water bottles. When <strong className="text-[#102B46] font-bold">Karan The Dhaba</strong> or your hotel serves Harit Jal, every guest holds a bespoke bottle crafted exclusively for your establishment — 100% compliant with FSSAI, BIS IS:14543, and eco-recycling norms.
+            Stop serving generic, unbranded water bottles. When <strong className="text-[#102B46] font-bold">Karan The Dhaba</strong> or your hotel serves Harit Jal, every guest holds a bespoke bottle crafted exclusively for your establishment — 100% compliant with FSSAI hygiene, GST invoicing, MSME standards, and eco-recycling norms.
           </p>
 
           {/* Two Horizontal CTA Buttons (Manrope 16–17px) */}
@@ -148,14 +148,14 @@ export const Hero: React.FC<HeroProps> = ({
               </div>
             </div>
 
-            {/* 2. BIS IS:14543 */}
+            {/* 2. MSME & GST */}
             <div className="flex items-center gap-3 px-3 py-1 sm:px-4 pt-2 md:pt-1">
               <div className="w-7 h-7 rounded-lg bg-[#455C22]/30 border border-[#C99B43]/40 flex items-center justify-center text-[#C99B43] shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
               <div className="leading-tight">
-                <div className="font-bold text-xs sm:text-[13px] text-[#FFF9EF] font-manrope">BIS IS:14543</div>
-                <div className="text-[10px] text-[#E0BA6E]">Quality standard</div>
+                <div className="font-bold text-xs sm:text-[13px] text-[#FFF9EF] font-manrope">MSME & GST</div>
+                <div className="text-[10px] text-[#E0BA6E]">Registered Enterprise</div>
               </div>
             </div>
 

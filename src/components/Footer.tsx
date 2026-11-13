@@ -136,7 +136,7 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F8F3E9] border border-[#C99B42]/35 text-[11px] font-bold text-[#102C47]">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#52652D]" />
-                <span className="font-devanagari">BIS गुणवत्ता</span>
+                <span className="font-devanagari">GST & MSME पंजीकृत</span>
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F8F3E9] border border-[#C99B42]/35 text-[11px] font-bold text-[#102C47]">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#52652D]" />
@@ -204,7 +204,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-[#C99B42] transition cursor-pointer flex items-center gap-2 text-left"
                 >
                   <Award className="w-3.5 h-3.5 text-[#C99B42]" />
-                  <span>EPR Plastic Recycling Policy</span>
+                  <span>Statutory & Food Safety Norms</span>
                 </button>
               </li>
               <li>

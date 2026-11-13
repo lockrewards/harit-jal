@@ -65,7 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBookingModal }) => {
   const navLinks = [
     { label: 'Bottle Gallery', path: '/gallery' },
     { label: 'How It Works', path: '/how-it-works' },
-    { label: 'Compliance & BIS', path: '/compliance' },
+    { label: 'Compliance & Legal', path: '/compliance' },
     { label: 'Contact', path: '/contact' },
   ];
 
