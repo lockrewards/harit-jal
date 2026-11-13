@@ -161,7 +161,7 @@ export class IntentDetector {
    */
   public static detectIntent(
     text: string, 
-    context: ConversationContext = { language: 'english', currentPage: '/collections', turnsCount: 0 }
+    context: ConversationContext = { language: 'english', currentPage: '/gallery', turnsCount: 0 }
   ): IntentResult {
     return this.analyze(text, context);
   }
@@ -171,7 +171,7 @@ export class IntentDetector {
    */
   public static analyze(
     text: string, 
-    context: ConversationContext = { language: 'english', currentPage: '/collections', turnsCount: 0 }
+    context: ConversationContext = { language: 'english', currentPage: '/gallery', turnsCount: 0 }
   ): IntentResult {
     const raw = text.trim();
     const lower = raw.toLowerCase();

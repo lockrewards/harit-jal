@@ -92,7 +92,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <button
                 onClick={() => {
                   soundPlayer.playWaterDrop();
-                  navigate('/collections');
+                  navigate('/gallery');
                 }}
                 className="btn-gold-luxury px-6 sm:px-7 py-3 rounded-full text-[14.5px] sm:text-[15.5px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
               >
@@ -391,11 +391,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             <button
               onClick={() => {
                 soundPlayer.playWaterDrop();
-                navigate('/collections');
+                navigate('/gallery');
               }}
               className="btn-gold-luxury self-start md:self-auto px-5 py-2 rounded-full text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
-              <span>Explore All Collections (6)</span>
+              <span>Explore Bottle Gallery</span>
               <ArrowRight className="w-3.5 h-3.5 text-[#102C47]" />
             </button>
           </div>

@@ -15,15 +15,7 @@
   <!-- Bespoke Bottle Gallery & Catalog -->
   <url>
     <loc>https://haritjal.in/gallery</loc>
-    <lastmod>2026-11-10</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-
-  <!-- Bottle Collections & Silhouettes -->
-  <url>
-    <loc>https://haritjal.in/collections</loc>
-    <lastmod>2026-11-10</lastmod>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>

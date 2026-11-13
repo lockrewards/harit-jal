@@ -16,7 +16,6 @@ import { HomePage } from './pages/HomePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 const GalleryPage = lazy(() => import('./pages/GalleryPage').then(m => ({ default: m.GalleryPage })));
-const CollectionsPage = lazy(() => import('./pages/CollectionsPage').then(m => ({ default: m.CollectionsPage })));
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
 const CompliancePage = lazy(() => import('./pages/CompliancePage').then(m => ({ default: m.CompliancePage })));
@@ -84,6 +83,13 @@ function AppContent() {
     StorageService.trackCurrentVisitorSession(pageLabel);
   }, [currentPath]);
 
+  // Automatic seamless redirect: /collections is consolidated into /gallery
+  useEffect(() => {
+    if (normalizedPath === '/collections') {
+      navigate('/gallery');
+    }
+  }, [normalizedPath, navigate]);
+
   // Listen for Supabase Auth recovery & profile confirmation events
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -149,6 +155,7 @@ function AppContent() {
         );
 
       case '/gallery':
+      case '/collections':
         return (
           <GalleryPage
             onOpenBookingModalWithProduct={(productDetails) => {
@@ -157,22 +164,6 @@ function AppContent() {
                 bottleSize: productDetails.bottleSize,
                 capColor: productDetails.capColor,
                 labelTheme: productDetails.labelTheme,
-              });
-              setIsBookingModalOpen(true);
-            }}
-          />
-        );
-
-      case '/collections':
-        return (
-          <CollectionsPage
-            onSelectProductForCustomizer={() => navigate('/gallery')}
-            onOpenBookingModalWithProduct={(bottle) => {
-              setModalInitialData({
-                restaurantName: bottle.title,
-                bottleSize: bottle.size,
-                capColor: bottle.capColor,
-                labelTheme: bottle.category,
               });
               setIsBookingModalOpen(true);
             }}

@@ -15,7 +15,6 @@ const CHAT_STORAGE_KEY = 'harit_jal_neer_chat_history_v2';
 const PAGE_TITLE_MAP: Record<string, string> = {
   '/': 'Home',
   '/gallery': 'Product Gallery',
-  '/collections': 'Bespoke Collections',
   '/how-it-works': 'Supply Journey',
   '/contact': 'Consultation & Contact',
   '/compliance': 'BIS & FSSAI Standards',
@@ -214,7 +213,6 @@ export const NeerWidget: React.FC<NeerWidgetProps> = ({ onOpenBookingModal }) =>
   const getContextualPrompts = (): string[] => {
     switch (currentPath) {
       case '/gallery':
-      case '/collections':
         return [
           '500ml flint glass bottle details?',
           'Dhabas ke liye best bottle kaunsi hai?',

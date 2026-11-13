@@ -113,17 +113,17 @@ export const NotFoundPage: React.FC = () => {
             <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
           </button>
 
-          {/* SECONDARY BUTTON: EXPLORE OUR COLLECTION */}
+          {/* SECONDARY BUTTON: EXPLORE BOTTLE GALLERY */}
           <button
             type="button"
             onClick={() => {
               soundPlayer.playBubblePop();
-              navigate('/collections');
+              navigate('/gallery');
             }}
             className="w-full sm:w-auto px-6 py-3 rounded-full bg-transparent hover:bg-white/60 border border-[#C99A3C] text-[#064B35] text-xs sm:text-sm font-semibold shadow-2xs hover:shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
           >
             <Layers className="w-4 h-4 text-[#064B35] stroke-[1.75]" />
-            <span>Explore Our Collection</span>
+            <span>Explore Bottle Gallery</span>
           </button>
         </div>
 
@@ -187,17 +187,17 @@ export const NotFoundPage: React.FC = () => {
             {/* Separator 1 */}
             <div className="hidden sm:block w-px h-5 bg-[#C99A3C]/50" aria-hidden="true" />
 
-            {/* ITEM 2: Our Collections */}
+            {/* ITEM 2: Bottle Gallery */}
             <button
               type="button"
               onClick={() => {
                 soundPlayer.playBubblePop();
-                navigate('/collections');
+                navigate('/gallery');
               }}
               className="group flex items-center gap-2 text-sm sm:text-[15px] font-bold font-playfair text-[#064B35] hover:text-[#C99A3C] transition-colors cursor-pointer"
             >
               <Layers className="w-4 h-4 text-[#064B35] group-hover:text-[#C99A3C] shrink-0 transition-colors stroke-[1.75]" />
-              <span>Our Collections</span>
+              <span>Bottle Gallery</span>
               <ArrowRight className="w-3.5 h-3.5 text-[#064B35] group-hover:text-[#C99A3C] group-hover:translate-x-1 transition-all" />
             </button>
 

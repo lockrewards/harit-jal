@@ -199,7 +199,7 @@ export class NeerAIService {
    */
   public static async generateResponse(
     userMessage: string,
-    context: ConversationContext = { language: 'english', currentPage: '/collections', turnsCount: 0 },
+    context: ConversationContext = { language: 'english', currentPage: '/gallery', turnsCount: 0 },
     history: ChatMessage[] = []
   ): Promise<ChatMessage> {
     const res = await this.processMessage(userMessage, history, context);
@@ -239,8 +239,8 @@ export class NeerAIService {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           language: lang,
           suggestedActions: [
-            { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'How It Works (Supply Process)', action: 'navigate', payload: '/how-it-works' },
             { label: 'Book a Consultation', action: 'book_call' },
           ],
         },
@@ -311,7 +311,7 @@ export class NeerAIService {
           : "I am sorry! I cannot disclose any customer or administrative data, internal records, or credentials in the chat. Harit Jal's administrative system is strictly restricted and data access via this assistant is strictly prohibited.\n\nFor registered store partners, order tracking is securely accessible via the Partner Portal at /track.";
         actions.push(
           { label: 'Open Partner Portal (/track)', action: 'navigate', payload: '/track' },
-          { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' }
+          { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' }
         );
         break;
 
@@ -323,8 +323,8 @@ export class NeerAIService {
           ? "क्षमा करें! हरित जल की सख्त डेटा गोपनीयता नीति के तहत, मैं चैट में किसी भी ग्राहक का व्यक्तिगत डेटा, फोन नंबर या विवरण साझा नहीं कर सकता — चाहे वह आपका स्वयं का डेटा हो या किसी अन्य का। सभी विवरण सुरक्षित और एन्क्रिप्टेड हैं। मैं आपके रेस्तरां के लिए क्या सहायता कर सकता हूँ?"
           : "I am sorry! Under Harit Jal's strict zero-leakage privacy and confidentiality policy, customer contact records and personal details are never displayed or shared in the chat — whether it is your own data or another establishment's.\n\nAll records remain strictly encrypted in our private backend. How may I assist your dining room with bespoke water bottles?";
         actions.push(
-          { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
-          { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' }
+          { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
+          { label: 'Book Discovery Call', action: 'book_call' }
         );
         break;
 
@@ -366,7 +366,7 @@ export class NeerAIService {
         actions.push(
           { label: 'Request Callback', action: 'book_call' },
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-          { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+          { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
         );
         break;
 
@@ -404,7 +404,7 @@ export class NeerAIService {
         actions.push(
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
           { label: 'Book Discovery Call', action: 'book_call' },
-          { label: 'View Bottle Collections', action: 'navigate', payload: '/collections' }
+          { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
         );
         break;
 
@@ -461,7 +461,7 @@ export class NeerAIService {
               language: lang,
               suggestedActions: [
                 { label: 'Book a Consultation', action: 'book_call' },
-                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+                { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
               ],
             };
           }
@@ -515,7 +515,7 @@ export class NeerAIService {
 
         actions.push(
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-          { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+          { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
         );
         break;
 
@@ -559,7 +559,7 @@ export class NeerAIService {
               language: lang,
               suggestedActions: [
                 { label: 'Book a Consultation', action: 'book_call' },
-                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+                { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
               ],
             };
           }
@@ -637,7 +637,7 @@ export class NeerAIService {
 
         actions.push(
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-          { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+          { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
         );
         break;
 
@@ -676,7 +676,7 @@ export class NeerAIService {
               language: lang,
               suggestedActions: [
                 { label: 'Book a Consultation', action: 'book_call' },
-                { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
+                { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
               ],
             };
           }
@@ -741,7 +741,7 @@ export class NeerAIService {
 
         actions.push(
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-          { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+          { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
         );
         break;
 
@@ -899,7 +899,7 @@ export class NeerAIService {
           actions.push(
             { label: 'View 1L Dhaba Bottle in Gallery', action: 'open_gallery', payload: '/gallery' },
             { label: 'Request 1L Sample Kit', action: 'book_call' },
-            { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
           );
         } else if (targetBottleSize === '750ml_glass') {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -935,7 +935,7 @@ export class NeerAIService {
 
           actions.push(
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-            { label: 'View Bottle Collections', action: 'navigate', payload: '/collections' },
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' },
             { label: 'Book Discovery Call', action: 'book_call' }
           );
         }
@@ -957,7 +957,7 @@ export class NeerAIService {
             : `Payment terms: Initial trial consignments are executed on advance or Cash-on-Delivery (COD). Verified monthly restaurant accounts qualify for flexible 7 to 15-day weekly cellar credit billing cycles.`;
           actions.push(
             { label: 'Book Partner Consultation', action: 'book_call' },
-            { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+            { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' }
           );
         } else if (entities.specificTopic === 'sample_kit') {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -981,7 +981,7 @@ export class NeerAIService {
             : `The 750ml Grand Reserve Decanter is priced at ₹24.00 wholesale per bottle (Recommended menu MRP: ₹70.00), delivering a ~66% table margin. Sculpted with heavy fluted glass and royal gold cap, it is crafted for luxury palace dining and grand banquet feasts.`;
           actions.push(
             { label: 'View 750ml Decanter in Gallery', action: 'open_gallery', payload: '/gallery' },
-            { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
           );
         } else if (entities.bottleSize === '1000ml') {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -999,7 +999,7 @@ export class NeerAIService {
           actions.push(
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
             { label: 'Request Free Samples', action: 'book_call' },
-            { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' }
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
           );
         }
         break;
@@ -1023,7 +1023,7 @@ export class NeerAIService {
             : `Harit Jal offers 4 Signature Metallic Cap finishes:\n\n1. Polished Champagne Gold (Fine dining & banquets)\n2. Forest Olive Green (Heritage dining & highway dhabas)\n3. Deep Royal Navy (Executive suites & modern bistros)\n4. Soft Pearl Cream (Artisanal cafes & boutique tables)\n\nEach cap includes a high-barrier tamper-evident security seal to preserve pristine taste.`;
           actions.push(
             { label: 'View Bottles in Gallery', action: 'open_gallery', payload: '/gallery' },
-            { label: 'View Bottle Designs', action: 'navigate', payload: '/collections' }
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
           );
         } else if (entities.specificTopic === 'qr_code') {
           text = lang === 'hinglish' || lang === 'hindi'
@@ -1039,7 +1039,7 @@ export class NeerAIService {
             : `Every Harit Jal bottle is crafted exclusively for your dining room:\n\n• High-definition label printing featuring your establishment emblem, bespoke typography, and contact info.\n• Tamper-evident metallic caps in Polished Champagne Gold, Forest Olive, Royal Navy, or Soft Cream.\n• Smart QR Menu integration allowing guests to view your live digital menu.\n\nYou can explore all exclusive bottle designs in our Bottle Gallery and order physical sample bottles!`;
           actions.push(
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-            { label: 'View Bottle Collections', action: 'navigate', payload: '/collections' },
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' },
             { label: 'Book Consultation Call', action: 'book_call' }
           );
         }
@@ -1091,8 +1091,8 @@ export class NeerAIService {
           ? `नमस्ते! मैं नीर हूँ 💧 हरित जल का जल साथी। हम आपके रेस्तरां या होटल के गर्वित नाम से ब्रांडेड पानी की बोतलें तैयार करते हैं। क्या आप कांच की या आर-पैट बोतलें देखना चाहेंगे?`
           : `Namaste and welcome! I am Neer 💧 Harit Jal's AI Water Guide. We craft bespoke packaged drinking water bottles exclusively branded in your restaurant or hotel's name. How can I assist your establishment today?`;
         actions.push(
-          { label: 'Explore Bottle Collections (6)', action: 'navigate', payload: '/collections' },
           { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
+          { label: 'How It Works (Supply Process)', action: 'navigate', payload: '/how-it-works' },
           { label: 'Book a Consultation Call', action: 'book_call' }
         );
         break;
@@ -1111,7 +1111,7 @@ export class NeerAIService {
             : `Harit Jal packaged drinking water has a certified shelf life of 12 months from the bottling date when stored in clean, cool cellar conditions. Every tamper-evident cap displays laser-printed manufacturing dates, batch codes, and best before dates per BIS IS:14543 regulations.`;
           actions.push(
             { label: 'View Quality Certifications', action: 'navigate', payload: '/compliance' },
-            { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' }
+            { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' }
           );
           break;
         }
@@ -1140,8 +1140,8 @@ export class NeerAIService {
             verifiedDate: top.lastUpdated,
           };
           actions.push(
-            { label: 'Explore Bottle Collections', action: 'navigate', payload: '/collections' },
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' },
             { label: 'Book Discovery Call', action: 'book_call' }
           );
         } else {
@@ -1158,7 +1158,7 @@ export class NeerAIService {
           actions.push(
             { label: 'Request Call Back', action: 'book_call' },
             { label: 'Explore Bottle Gallery', action: 'open_gallery', payload: '/gallery' },
-            { label: 'Explore Collections', action: 'navigate', payload: '/collections' }
+            { label: 'How It Works', action: 'navigate', payload: '/how-it-works' }
           );
         }
         break;

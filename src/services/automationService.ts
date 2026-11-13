@@ -200,7 +200,7 @@ export class AutomationService {
         estimatedQuantity: leadData.estimatedQuantity ? String(leadData.estimatedQuantity) : 'Pending volume estimate',
         customerRequirements: leadData.customerRequirements || 'Interested in bespoke dining bottles',
         conversationSummary: leadData.conversationSummary || 'Customer initiated inquiry via Neer AI',
-        sourcePage: leadData.sourcePage || '/collections',
+        sourcePage: leadData.sourcePage || '/gallery',
         leadStatus: leadData.leadStatus || 'Incomplete',
         adminNotificationStatus: leadData.adminNotificationStatus || 'Pending',
         customerConfirmationStatus: leadData.customerConfirmationStatus || 'Pending',
